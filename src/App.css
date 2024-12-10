@@ -1,0 +1,79 @@
+@import 'mapbox-gl/dist/mapbox-gl.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.icon-park-twotone--aiming {
+  display: inline-block;
+  --svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3Cmask id='ipTAiming0'%3E%3Cg fill='none'%3E%3Ccircle cx='24' cy='24' r='20' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3'/%3E%3Cpath fill='%23555' fill-rule='evenodd' d='M24 37v7z' clip-rule='evenodd'/%3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M24 37v7'/%3E%3Cpath fill='%23555' fill-rule='evenodd' d='M36 24h8z' clip-rule='evenodd'/%3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M36 24h8'/%3E%3Cpath fill='%23555' fill-rule='evenodd' d='M4 24h7z' clip-rule='evenodd'/%3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M4 24h7'/%3E%3Cpath fill='%23555' fill-rule='evenodd' d='M24 11V4z' clip-rule='evenodd'/%3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M24 11V4'/%3E%3C/g%3E%3C/mask%3E%3C/defs%3E%3Cpath fill='%23000' d='M0 0h48v48H0z' mask='url(%23ipTAiming0)'/%3E%3C/svg%3E");
+  background-color: currentColor;
+  -webkit-mask-image: var(--svg);
+  mask-image: var(--svg);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  opacity: 0.5;
+}
+
+.marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background-color: white;
+  border: 2px solid #d9d9d9;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.marker-icon {
+  width: 30px;
+  height: 30px;
+  background-image: url('./assets/parking-icon.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.mapboxgl-popup {
+  max-width: 200px;
+}
+
+.mapboxgl-popup-content {
+  text-align: center;
+  font-family: 'Open Sans', sans-serif;
+}
+
+.results {
+    border: 1px solid #ccc;
+  }
+  
+  .results button {
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    list-style: none;
+  }
+  
+  .results button.selected {
+    background-color: #e0e0e0;
+  }
+  
+  .results button:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .loading {
+    margin-top: 0.5rem;
+    color: #666;
+  }
