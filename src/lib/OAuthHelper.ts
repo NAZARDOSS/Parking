@@ -1,9 +1,8 @@
 export const fetchParkingFacilities = async () => {
   const url = `https://browse.search.hereapi.com/v1/browse?at=40.7483,-74.1376&categories=700-7600-0322&limit=3&show=ev`;
 
-  const token = 'eyJhbGciOiJSUzUxMiIsImN0eSI6IkpXVCIsImlzcyI6IkhFUkUiLCJhaWQiOiJGZE5kOXpEN1ZBck52anhGOUNnUiIsImlhdCI6MTczMzU5MzgwMCwiZXhwIjoxNzMzNjgwMjAwLCJraWQiOiJqMSJ9.ZXlKaGJHY2lPaUprYVhJaUxDSmxibU1pT2lKQk1qVTJRMEpETFVoVE5URXlJbjAuLk81Ty04RmdORGI1RURNOFI1M2VKMEEuQnltNjNoNEdWaVBtb1BlMEZZMlM3YTcyckpqdUFXOXpqYzRqeHVxNUROM0stSTBTdDZ0SS03RkdZV1JpQmdFSVJEQmIyNkF4dk9ZTlBlcnp0YzRxaWVUcE1rczZsaUM4ZldCUGZJaEZiSGR6SmdWdmFuTjkyWVdZeG42eGtSWWFSX3cxNnRRUmVrMzFsSlM4dlY5NHhEODFhZW94ajViazBHRV9wbElxZGpjLjZGOUNXRk9qeUlaSXUyY1hHME1KcEk1S2VtUDZKMUI2WUt4YjBxdkNVX2M.wXbi13WFFeK79knjEgScXorYx47mXxGzuVxozhgA0XbLFrouj9YlWe7VdJj3BQvX1sWeMuNd4Y1iwo6q2SdafV6Z4FwqeQkuSrw9xLp_tGlyiiiXq5LCJGgcMl1a75-SvxP74RWjp0FlsrGkZJyAFm-QEHk5bP2UtXIwCOuc0gn9_iCx_sRR9W2znL2fjwZAhAS9GF43urM_aOXDZLs4sui3qfTUftJuge36aftxrAZ9V8ywOfNSw2fiZIbjiQKjAaXCL-TH9gMaivkiqUULFBxnQGzSq7tHnO3mx1rwCYkrAQI1vU2_T2ADBTPd_lezc7ir7HH0UDlk90I8D22w5A';
+  const token = 'eyJhbGciOiJSUzUxMiIsImN0eSI6IkpXVCIsImlzcyI6IkhFUkUiLCJhaWQiOiJGZE5kOXpEN1ZBck52anhGOUNnUiIsImlhdCI6MTczNDI1NTI0NSwiZXhwIjoxNzM0MzQxNjQ1LCJraWQiOiJqMSJ9.ZXlKaGJHY2lPaUprYVhJaUxDSmxibU1pT2lKQk1qVTJRMEpETFVoVE5URXlJbjAuLkxWSHVGVVd0V3BLNTdOdUtZelVZbWcueHM1NV9iZG5WeW91cGI1aE5xdWs4X2lHVXFUV3pCWG1LbGNEUlNnX1RzandKWV9WX1pyNF9vQmt0M1lLcXVycTlaQURoSzljVjcxOVdEa1l0blRuU2s0TElLN2ZFcDFkc29tWThQZ0ZPR3JlblpScXNVUHdFTWJVRHA3Ul9sb3BWR2pmMEJRUWlDcFhZQkZ0OGxfZVVrSjVmTGpjVzR0UlMxeDR4UnNCZDFZLmZqRWMtcFdQUU1oM3pjbTMwb19JQmdiSTM2XzFYTnRFMzFGOUpUa2FYWUE.ZAx42XnDunmALhuT48SsBnVnxVnxJpv-n_Ws2X6OZ0lbbg681gpRm7NwKzRc90tyObVGE1VWhebbI0I0yDsMZIWVhf7bprsfl7HubPhxFT0jPcmjby8DsR2M9E9rk7cNnr1U50rSENNWWH7sMurdu41biHInVVb8j9Zgx8AzFuU2E1TAptwmo4DpZ-XCiYRGALhBQ45YRljMN4twh4eoDWaEegB5MNROJolaOfztg4z5vGvowYMIsgUEclQs1dBJl8QR84BdnoaK1wYz8XrERAmu2iphoVOy0pShDQWSP5fl0ctOIuLA1iDmYzEZy72rqXULL5xUreYOzCiae8dwlg';
 
-  // const apiKey = 'U6EJBKlh1P9XNgkcy7ICYaT71wKsczzX9nJPTqdbQFI'; 
   try {
       const response = await fetch(`${url}`, {
           method: 'GET',
@@ -17,8 +16,7 @@ export const fetchParkingFacilities = async () => {
       }
 
       const data = await response.json();
-      console.log(data); // Обрабатываем полученные данные
-
+      console.log(data);
   } catch (error) {
       console.error('Ошибка при запросе:', error);
   }

@@ -1,31 +1,5 @@
 import mapboxgl from "mapbox-gl";
 
-// export const fetchParkingDataWithToken = async (
-//   token: string,
-//   northEast: { lat: number; lng: number },
-//   southWest: { lat: number; lng: number }
-// ): Promise<any> => {
-//   const url = `https://api.here.com/v1/parking?bbox=${northEast.lat},${northEast.lng},${southWest.lat},${southWest.lng}`;
-
-//   try {
-//     const response = await fetch(url, {
-//       headers: {
-//         Authorization: `Bearer ${token}`,  // Используем токен для авторизации
-//       },
-//     });
-
-//     if (!response.ok) {
-//       throw new Error('Ошибка загрузки данных о парковках');
-//     }
-
-//     const data = await response.json();
-//     return data;
-//   } catch (error) {
-//     console.error('Ошибка при получении данных парковки:', error);
-//     throw error;
-//   }
-// };
-
 export const fetchEVChargers = async (hereToken, centerCoords, radius, map, maxStations = 50) => {
   console.log('radius!:::::: ', radius);
   if(radius > 15000) return;
@@ -243,7 +217,6 @@ export const fetchParkingData = async (apiKey, northEast, southWest, radius) => 
   }));
 };
 
-// Отображение маркеров парковок
 const addClusters = (
   map: mapboxgl.Map,
   data: Array<{ lon: number; lat: number; position?: { lng: number; lat: number } }>,
@@ -253,9 +226,17 @@ const addClusters = (
 ): void => {
   if (!map || !data || data.length === 0) return;
 
-  // Добавляем или обновляем источник данных
+  // Удаляем старые слои и источник перед добавлением новых
   if (map.getSource(sourceId)) {
-    (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData({
+    map.removeLayer(`${sourceId}-clusters`);
+    map.removeLayer(`${sourceId}-cluster-count`);
+    map.removeLayer(`${sourceId}-unclustered-point`);
+    map.removeSource(sourceId);
+  }
+
+  map.addSource(sourceId, {
+    type: "geojson",
+    data: {
       type: "FeatureCollection",
       features: data.map((item) => ({
         type: "Feature",
@@ -268,92 +249,75 @@ const addClusters = (
           ],
         },
       })),
-    });
-  } else {
-    map.addSource(sourceId, {
-      type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: data.map((item) => ({
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "Point",
-            coordinates: [
-              item.lon || item.position?.lng || 0,
-              item.lat || item.position?.lat || 0,
-            ],
-          },
-        })),
-      },
-      cluster: true,
-      clusterMaxZoom: 15,
-      clusterRadius: 50,
-    });
+    },
+    cluster: true,
+    clusterMaxZoom: 15,
+    clusterRadius: 50,
+  });
 
-    // Слой кластеров
-    map.addLayer({
-      id: `${sourceId}-clusters`,
-      type: "circle",
-      source: sourceId,
-      filter: ["has", "point_count"],
-      paint: {
-        "circle-color": [
-          "step",
-          ["get", "point_count"],
-          clusterColors[0],
-          10,
-          clusterColors[1],
-          25,
-          clusterColors[2],
-        ],
-        "circle-radius": [
-          "step",
-          ["get", "point_count"],
-          15,
-          20,
-          20,
-          50,
-          25,
-        ],
-      },
-    });
+  // Слой кластеров
+  map.addLayer({
+    id: `${sourceId}-clusters`,
+    type: "circle",
+    source: sourceId,
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        clusterColors[0],
+        10,
+        clusterColors[1],
+        25,
+        clusterColors[2],
+      ],
+      "circle-radius": [
+        "step",
+        ["get", "point_count"],
+        15,
+        20,
+        20,
+        50,
+        25,
+      ],
+    },
+  });
 
-    // Слой текста для кластеров
-    map.addLayer({
-      id: `${sourceId}-cluster-count`,
-      type: "symbol",
-      source: sourceId,
-      filter: ["has", "point_count"],
-      layout: {
-        "text-field": "{point_count_abbreviated}",
-        "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-        "text-size": 12,
-      },
-    });
+  // Слой текста для кластеров
+  map.addLayer({
+    id: `${sourceId}-cluster-count`,
+    type: "symbol",
+    source: sourceId,
+    filter: ["has", "point_count"],
+    layout: {
+      "text-field": "{point_count_abbreviated}",
+      "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+      "text-size": 12,
+    },
+  });
 
-    // Слой одиночных точек
-    map.addLayer({
-      id: `${sourceId}-unclustered-point`,
-      type: "circle",
-      source: sourceId,
-      filter: ["!", ["has", "point_count"]],
-      paint: {
-        "circle-color": pointColor,
-        "circle-radius": 5,
-        "circle-stroke-width": 1,
-        "circle-stroke-color": "#fff",
-      },
-    });
-  }
+  // Слой одиночных точек
+  map.addLayer({
+    id: `${sourceId}-unclustered-point`,
+    type: "circle",
+    source: sourceId,
+    filter: ["!", ["has", "point_count"]],
+    paint: {
+      "circle-color": pointColor,
+      "circle-radius": 5,
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#fff",
+    },
+  });
 };
-
 
 export const drawParkingMarkers = (map, parkingData, zoomValue) => {
   activeMarkers.forEach((marker) => marker.remove());
   activeMarkers = [];
 
-  if (zoomValue < 15) {
+  console.log('zoomValue: ', zoomValue);
+  
+  if (zoomValue < 13) {
     const sourceId = "parking-clusters";
     const clusterColors = ["#51bbd6", "#f1f075", "#f28cb1"];
     const pointColor = "#11b4da";
