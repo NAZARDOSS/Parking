@@ -7,7 +7,12 @@ import SearchInput from "./SearchInput";
 import GeoButton from "./controls/GeoButton";
 import SpeedTracker from "./SpeedTracker";
 import BarButton from "./controls/BarButton";
-import { initializeMap, updateUserLocation, getRoute, drawRoute } from "../lib/MapHelper.ts";
+import {
+  initializeMap,
+  updateUserLocation,
+  getRoute,
+  drawRoute,
+} from "../lib/MapHelper.ts";
 import DrawCircle from "./HelpComponents/DrawCircle.jsx";
 import EvCircle from "./СircleArea/EvCircle.jsx";
 import ParkingCircle from "./СircleArea/ParkingCirle.jsx";
@@ -38,7 +43,11 @@ function Map() {
       const { latitude, longitude } = position.coords;
       const newLocation = { lat: latitude, lng: longitude };
 
-      if (!userLocation || userLocation.lat !== newLocation.lat || userLocation.lng !== newLocation.lng) {
+      if (
+        !userLocation ||
+        userLocation.lat !== newLocation.lat ||
+        userLocation.lng !== newLocation.lng
+      ) {
         setUserLocation(newLocation);
         updateUserLocation(map, newLocation, isFollowing);
       }
@@ -48,9 +57,13 @@ function Map() {
       toast.error("Не удалось получить доступ к геолокации.");
     };
 
-    const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
-      enableHighAccuracy: true,
-    });
+    const watchId = navigator.geolocation.watchPosition(
+      handleSuccess,
+      handleError,
+      {
+        enableHighAccuracy: true,
+      }
+    );
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [map, userLocation, isFollowing]);
@@ -59,7 +72,12 @@ function Map() {
     if (!map) return;
 
     try {
-      const geometry = await getRoute(start, end, travelMode, mapboxAccessToken);
+      const geometry = await getRoute(
+        start,
+        end,
+        travelMode,
+        mapboxAccessToken
+      );
       drawRoute(map, geometry);
     } catch (error) {
       toast.error("Ошибка при запросе маршрута.");

@@ -1,16 +1,18 @@
-// ParkingCircle.jsx
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import * as turf from "@turf/turf";
 import { fetchParkingData, drawParkingMarkers } from "../../lib/MapHelper.ts";
 import { toast } from "react-hot-toast";
+import { setParkingData } from "../Store/store.js"; 
 
 const ParkingCircle = ({ map }) => {
-  const [parkingData, setParkingData] = useState([]);
+  const parkingData = useSelector((state) => state.parkings.parkingData);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     if (!map) return;
 
-    const MAX_RADIUS = 5000;
+    const MAX_RADIUS = 1500;
 
     const calculateRadius = (center, cursor) => {
       const from = turf.point([center.lng, center.lat]);
@@ -32,7 +34,7 @@ const ParkingCircle = ({ map }) => {
           radius
         );
 
-        setParkingData(fetchedParkingData);
+        dispatch(setParkingData(fetchedParkingData)); // Используем dispatch для обновления данных
         drawParkingMarkers(map, fetchedParkingData, map.getZoom());
         toast.success("Данные парковок успешно загружены!");
       } catch (error) {
@@ -52,6 +54,7 @@ const ParkingCircle = ({ map }) => {
       const center = e.lngLat;
 
       const handleMouseMove = (moveEvent) => {
+        console.log('MouseMove');
         const radius = calculateRadius(center, moveEvent.lngLat);
 
         if (map.getSource("circle-source")) {
@@ -76,6 +79,7 @@ const ParkingCircle = ({ map }) => {
       map.on("mousemove", handleMouseMove);
 
       const handleMouseUp = () => {
+        console.log('MouseUp');
         const radius = calculateRadius(center, map.getCenter());
         map.off("mousemove", handleMouseMove);
         map.off("mouseup", handleMouseUp);
@@ -99,7 +103,7 @@ const ParkingCircle = ({ map }) => {
         map.removeSource("circle-source");
       }
     };
-  }, [map, parkingData]);
+  }, [map, parkingData, dispatch]);
 
   return null;
 };

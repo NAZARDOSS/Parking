@@ -1,17 +1,24 @@
-// EvCircle.jsx
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import * as turf from "@turf/turf";
 import { fetchEVChargers, drawEVMarkers } from "../../lib/MapHelper.ts";
 import { toast } from "react-hot-toast";
 
+const setEVData = (data) => ({
+  type: "SET_EV_DATA",
+  payload: data,
+});
+
 const EvCircle = ({ map }) => {
-  const [EVchargersData, setEVchargersData] = useState([]);
+  const evData = useSelector((state) => state.chargers.evData);
+  const dispatch = useDispatch();
   const token =
     "eyJhbGciOiJSUzUxMiIsImN0eSI6IkpXVCIsImlzcyI6IkhFUkUiLCJhaWQiOiJGZE5kOXpEN1ZBck52anhGOUNnUiIsImlhdCI6MTczNDU1MjkxMywiZXhwIjoxNzM0NjM5MzEzLCJraWQiOiJqMSJ9.ZXlKaGJHY2lPaUprYVhJaUxDSmxibU1pT2lKQk1qVTJRMEpETFVoVE5URXlJbjAuLlZQc0V1VDZzTWdPY0FBRDhIREVFbHcuSkhUNG5vV2RUTm5PZE9mb1VVUzJiNl84RXdKdXlqelo2ZVRLUUlLN0lkcU1JYkx1b3F1Z2E1ZVNkNU40bDRRZVNXQjdjQmhyb1Nqa3YtU25rbEs4V3V1TXdpU0MzMHZJdnYyQW1aN1ROYUMyMXM2OHRjUXhUS3I1TlBWNHhrU2RJMXhnMkJvckg4eWxNekVkU29xem93cS01RHdwUm1sSzV5X2tUY3c4YnNJLmdlOTJaYUlTcXVQdHFROUFaQXVGZ25uR3pLQlRkTy12Mkx4MU0yQnVmM2M.reXSu5kGQqVIhcGeLt0zH6mvPlBcYNmOQftwM2lw7CELpjSyRa5456lNAVsAvTwegtLc81jxkJxLqNG65cbbpKfUe7IMmLLodDXQyIPwfAPqgLkWsr-8cA0wHunzFiNQLe1DuB00ApvnW_CzxyOKDZp9kh8JXOJ4xCXJls2tRC1liuPWLsBsWjm9uyDAQUwCp5FM5Fh6OUoRblR3jwWGnc4K7qLNyZ4pdpeA6AXVo1rMcDn092swBOCBKAAJW_n6F5p_YIAZitupn1SD5pWAD8PTf4BL3jbw_wUHcN5YaygPL6ny5zdm_o5WrUBBSuJzOTGThRJoCndjDnTG-rQsQQ";
+
   useEffect(() => {
     if (!map) return;
 
-    const MAX_RADIUS = 5000;
+    const MAX_RADIUS = 1500;
 
     const calculateRadius = (center, cursor) => {
       const from = turf.point([center.lng, center.lat]);
@@ -28,7 +35,8 @@ const EvCircle = ({ map }) => {
           radius
         );
 
-        setEVchargersData(fetchedEVData);
+        dispatch(setEVData(fetchedEVData));
+
         drawEVMarkers(map, fetchedEVData, map.getZoom());
         toast.success("Данные зарядных станций успешно загружены!");
       } catch (error) {
@@ -41,7 +49,7 @@ const EvCircle = ({ map }) => {
       const zoomLevel = map.getZoom();
       const radius = map.getSource("circle-source")?.radius || 5000;
       const center = map.getSource("circle-source")?.center;
-      drawEVMarkers(map, EVchargersData, zoomLevel);
+      drawEVMarkers(map, evData, zoomLevel);
     });
 
     map.on("dblclick", async (e) => {
@@ -51,14 +59,12 @@ const EvCircle = ({ map }) => {
         const radius = calculateRadius(center, moveEvent.lngLat);
 
         if (map.getSource("circle-source")) {
-          map
-            .getSource("circle-source")
-            .setData(
-              turf.circle([center.lng, center.lat], radius, {
-                steps: 64,
-                units: "meters",
-              })
-            );
+          map.getSource("circle-source").setData(
+            turf.circle([center.lng, center.lat], radius, {
+              steps: 64,
+              units: "meters",
+            })
+          );
         } else {
           map.addSource("circle-source", {
             type: "geojson",
@@ -103,7 +109,7 @@ const EvCircle = ({ map }) => {
         map.removeSource("circle-source");
       }
     };
-  }, [map, EVchargersData]);
+  }, [map, evData, dispatch]);
 
   return null;
 };
