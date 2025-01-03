@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import authRoutes from './routes/authRoutes.js';
-import requestRoutes from './routes/requestsRoutes.js';
-import { getConnection } from './config/db.js';
+import authRoutes from './routes/authRoutes.ts';
+import requestRoutes from './routes/requestsRoutes.ts';
+import { getConnection } from './config/db.ts';
 
 const app = express();
 const port = 5005;
@@ -23,3 +23,5 @@ getConnection()
     console.error('Database connection error:', err);
     process.exit(1);
   });
+
+export default app;

@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
-import { getConnection } from '../config/db.js';
+import { getConnection } from '../config/db.ts';
 
 const client = new OAuth2Client('YOUR_GOOGLE_CLIENT_ID');
 
@@ -15,6 +15,10 @@ export const registerUser = async (
   email: string,
   password: string
 ): Promise<void> => {
+  if (!firstName || !lastName || !email || !password) {
+    throw new Error('Invalid user data');
+  }
+
   const hashedPassword = await bcrypt.hash(password, 10);
   const query = 'INSERT INTO users (firstName, lastName, email, password_) VALUES (?, ?, ?, ?)';
   const connection = await getConnection();
@@ -22,6 +26,10 @@ export const registerUser = async (
 };
 
 export const loginUser = async (email: string, password: string): Promise<string> => {
+  if (!email || !password) {
+    throw new Error('Email and password are required');
+  }
+
   const query = 'SELECT * FROM users WHERE email = ?';
   const connection = await getConnection();
   const [rows]: any = await connection.execute(query, [email]);
@@ -34,6 +42,10 @@ export const loginUser = async (email: string, password: string): Promise<string
 };
 
 export const loginWithGoogle = async (tokenFromGoogle: string): Promise<string> => {
+  if (!tokenFromGoogle) {
+    throw new Error('Google token is required');
+  }
+
   const ticket = await client.verifyIdToken({
     idToken: tokenFromGoogle,
     audience: '758165492852-17poav9i7hlee4vj9hrg8125sttlfltd.apps.googleusercontent.com',

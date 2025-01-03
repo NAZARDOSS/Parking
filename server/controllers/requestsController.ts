@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getConnection } from '../config/db.js';
+import { getConnection } from '../config/db.ts';
 
 export const addRequest = async (req: Request, res: Response): Promise<void> => {
   const { startLatitude, startLongitude, finishLatitude, finishLongitude, finishName } = req.body;
