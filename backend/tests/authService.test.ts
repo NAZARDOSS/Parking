@@ -1,4 +1,4 @@
-import * as authService from '../server/services/authService.js';
+import * as authService from '../server/services/authService.ts';
 
 jest.mock('../server/config/db', () => ({
   getConnection: jest.fn().mockResolvedValue({
@@ -9,7 +9,7 @@ jest.mock('../server/config/db', () => ({
 describe('Auth Service', () => {
   it('should hash password and save user to database', async () => {
     const result = await authService.registerUser('John', 'Doe', 'john.doe@example.com', 'securePassword123');
-    expect(result).toBeUndefined(); // Если метод ничего не возвращает
+    expect(result).toBeUndefined();
   });
 
   it('should throw an error for invalid user data', async () => {

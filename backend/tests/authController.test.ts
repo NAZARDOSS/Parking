@@ -1,12 +1,22 @@
 import request from 'supertest';
-import app from "../server/server.js"
+import app from "../server/server.ts"
 
 describe('Auth Controller', () => {
+  let server;
+
+  beforeAll(() => {
+    server = app.listen(4000);
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
   it('should register a user', async () => {
-    const response = await request(app).post('/api/auth/register').send({
+    const response = await request(app).post('/api/auth/signin').send({
       firstName: 'John',
       lastName: 'Doe',
-      email: 'john.doe@example.com',
+      email: 'john.doe@example5.com',
       password: 'securePassword123',
     });
 
@@ -15,7 +25,7 @@ describe('Auth Controller', () => {
   });
 
   it('should return error if registration fails', async () => {
-    const response = await request(app).post('/api/auth/register').send({
+    const response = await request(app).post('/api/auth/signin').send({
       firstName: '',
       lastName: '',
       email: 'invalid-email',
