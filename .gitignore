@@ -3,6 +3,8 @@
 # dependencies
 /node_modules
 /dist
+/backend/node_modules
+/backend/coverage
 /.pnp
 .pnp.js
 
