@@ -31,6 +31,30 @@ const RouteSelectionForm = ({
     return () => clearTimeout(timer);
   }, []);
 
+
+  const saveRouteInfo = async (startPointCoordinates, finishPointCoordinates, finishPointQuery) => {
+    try {
+      const response = await fetch('http://localhost:5005/api/requests/routeInfo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          startLatitude: startPointCoordinates[1],
+          startLongitude: startPointCoordinates[0],
+          finishLatitude: finishPointCoordinates[1],
+          finishLongitude: finishPointCoordinates[0],
+          finishName: finishPointQuery,
+        }),
+      });
+  
+      const data = await response.json();
+      console.log('Response:', data);
+    } catch (error) {
+      console.error('Error saving route info:', error);
+    }
+  };
+
   const handleGeolocationSelect = (type) => {
     if (userLocation) {
       const { lat, lng } = userLocation;
@@ -50,6 +74,7 @@ const RouteSelectionForm = ({
   const handleSelectRoute = async () => {
     console.log('select');
     setRouteSelected(true);
+    saveRouteInfo(startPointCoordinates, finishPointCoordinates, finishPointQuery)
     await fetchTravelTime();
     handleSubmit()
   };

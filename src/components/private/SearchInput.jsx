@@ -70,7 +70,6 @@ const SearchInput = ({ map, placeholder = "Search", apiKey, onResultSelect, user
         )}&session_token=${sessionToken}&access_token=${apiKey}`
       );
       const data = await response.json();
-      saveRouteInfo(startPoint, finishPoint, finishPointQuery)
       return data.suggestions || [];
     } catch (error) {
       console.error("Error fetching suggestions:", error);

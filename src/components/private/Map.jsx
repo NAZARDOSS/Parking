@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useSelector, shallowEqual } from "react-redux"; 
+import { useSelector, shallowEqual } from "react-redux";
 import mapboxgl from "mapbox-gl";
 import { Toaster, toast } from "react-hot-toast";
 import SearchInput from "./SearchInput.jsx";
@@ -18,24 +18,25 @@ import FilterBlock from "./bar/FilterBlock.jsx";
 import ProfileBlock from "./bar/ProfileBlock.jsx";
 import RoutesData from "./bar/RoutesData.jsx";
 
-function Map({setIsLoggedIn}) {
+function Map({ setIsLoggedIn }) {
   const [map, setMap] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isFollowing, setIsFollowing] = useState(true);
   const [isBarVisible, setIsBarVisible] = useState(false);
   const mapContainer = useRef(null);
 
+  const [startPointMarker, setStartPointMarker] = useState(null);
+  const [finishPointMarker, setFinishPointMarker] = useState(null);
+
   const parkingData = useSelector(
     (state) => state.parkings.parkingData,
     shallowEqual
   );
-
-  const parkingFilters = useSelector((state) => state.filters.parkingFilters); 
-
+  
+  const parkingFilters = useSelector((state) => state.filters.parkingFilters);
   const isFiltersVisible = useSelector((state) => state.filters.isFiltersVisible);
-  const isProfileVisible = useSelector((state) => state.profile.isProfileVisible)
-  const isRoutesVisible = useSelector((state) => state.routes.isRoutesVisible)
-  console.log('isRoutesVisible:', isRoutesVisible);
+  const isProfileVisible = useSelector((state) => state.profile.isProfileVisible);
+  const isRoutesVisible = useSelector((state) => state.routes.isRoutesVisible);
   
   const isParkingData = useSelector((state) => state.parkings.isParkingData);
   const isChargerData = useSelector((state) => state.chargers.isChargerData);
@@ -93,9 +94,10 @@ function Map({setIsLoggedIn}) {
       handleError,
       {
         enableHighAccuracy: true,
-      })
-    
-      return () => navigator.geolocation.clearWatch(watchId);
+      }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
   }, [map, userLocation, isFollowing]);
 
   const handleRouteRequest = async (start, end, travelMode) => {
@@ -118,9 +120,21 @@ function Map({setIsLoggedIn}) {
   const handleSearchResult = ({ startPoint, finishPoint }) => {
     if (!map || !finishPoint) return;
 
+    if (startPointMarker) startPointMarker.remove();
+    if (finishPointMarker) finishPointMarker.remove();
+
+    if (startPoint) {
+      const newStartMarker = new mapboxgl.Marker().setLngLat(startPoint).addTo(map);
+      setStartPointMarker(newStartMarker);
+    }
+
+    if (finishPoint) {
+      const newFinishMarker = new mapboxgl.Marker().setLngLat(finishPoint).addTo(map);
+      setFinishPointMarker(newFinishMarker);
+    }
+
     handleRouteRequest(startPoint, finishPoint, "driving");
     map.flyTo({ center: finishPoint, zoom: 14, essential: true });
-    new mapboxgl.Marker().setLngLat(finishPoint).addTo(map);
   };
 
   return (
