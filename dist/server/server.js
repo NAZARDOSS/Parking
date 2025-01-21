@@ -20,4 +20,5 @@ getConnection()
     console.error('Database connection error:', err);
     process.exit(1);
 });
+export default app;
 //# sourceMappingURL=server.js.map

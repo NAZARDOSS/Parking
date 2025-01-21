@@ -7,12 +7,18 @@ const generateToken = (userId) => {
     return jwt.sign({ userId }, 'secretKey', { expiresIn: '1h' });
 };
 export const registerUser = async (firstName, lastName, email, password) => {
+    if (!firstName || !lastName || !email || !password) {
+        throw new Error('Invalid user data');
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const query = 'INSERT INTO users (firstName, lastName, email, password_) VALUES (?, ?, ?, ?)';
     const connection = await getConnection();
     await connection.execute(query, [firstName, lastName, email, hashedPassword]);
 };
 export const loginUser = async (email, password) => {
+    if (!email || !password) {
+        throw new Error('Email and password are required');
+    }
     const query = 'SELECT * FROM users WHERE email = ?';
     const connection = await getConnection();
     const [rows] = await connection.execute(query, [email]);
@@ -25,6 +31,9 @@ export const loginUser = async (email, password) => {
     return generateToken(user.id);
 };
 export const loginWithGoogle = async (tokenFromGoogle) => {
+    if (!tokenFromGoogle) {
+        throw new Error('Google token is required');
+    }
     const ticket = await client.verifyIdToken({
         idToken: tokenFromGoogle,
         audience: '758165492852-17poav9i7hlee4vj9hrg8125sttlfltd.apps.googleusercontent.com',
