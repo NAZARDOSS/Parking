@@ -86,7 +86,7 @@ function Map({ setIsLoggedIn }) {
     };
 
     const handleError = () => {
-      toast.error("Не удалось получить доступ к геолокации.");
+      toast.error("Геолокація недоступна");
     };
 
     const watchId = navigator.geolocation.watchPosition(
@@ -98,7 +98,7 @@ function Map({ setIsLoggedIn }) {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [map, userLocation, isFollowing]);
+  }, [map, isFollowing]);
 
   const handleRouteRequest = async (start, end, travelMode) => {
     if (!map) return;

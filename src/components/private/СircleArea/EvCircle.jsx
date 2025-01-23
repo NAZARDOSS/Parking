@@ -15,7 +15,7 @@ const EvCircle = ({ map }) => {
   const dispatch = useDispatch();
 
   const token =
-    "eyJhbGciOiJSUzUxMiIsImN0eSI6IkpXVCIsImlzcyI6IkhFUkUiLCJhaWQiOiJGZE5kOXpEN1ZBck52anhGOUNnUiIsImlhdCI6MTczNTA1ODI1MCwiZXhwIjoxNzM1MTQ0NjUwLCJraWQiOiJqMSJ9.ZXlKaGJHY2lPaUprYVhJaUxDSmxibU1pT2lKQk1qVTJRMEpETFVoVE5URXlJbjAuLjJ1TVp2SVlxR2h6cklZV3pvTm9xU2cuNUx6dHFsbHVnclM4MnhUQzVLQVVDcXZMTTFKUWdUQ3hTYWlKRUxDRF9ocFdUNVQ0bHVoOWU4OEw5Q3JmZXN2SlU2dkNpNWZTRVFkbzUzSFRLNTJzVXF4bGllN1dpSGZVZ05VdGQ1QTdJZWZTT2t6ZjMyT2xmcFlVZUlIWGl6LWhTUUp4eW9xUmppYTA4OXh2TnNuaWR3T2I3dS02RlB4RXh3c0lOU1JoOU9ZLkJqUnJnYXplQTllLUZPbXZfV01XR1VHczZHOFRJUE9CVEt6SE5BLS1udHc.nvXOk6gndPgwcbieOJRvbC7X49s-2yF1_dZ744c1sR3zxa6L46_WgZ7S_OmUkVpuUXOPsnFfnAIsbf4266qzWu_bknCSPk_1dn1RQFmmZleh48XSIVSqh7Une4stU1h2fBTjMlfqwDB1Z3bAzm4ihsKCZeO_0ykiwPJXZAs48Ot0_t2A0-C5jlb9E_xX1psnO9t3x2ePG9MxFrF3ItQj26U4mtABDE53lwJobMEoXY3VoKE_Kt2B_8SrQUW6bo-i0QicaX_YIo5q110VvhoKDhRZ7bbxNPK8KhKxBG0LjK94-SFsTPbrRiejk_NxpiscHmpbGV3WgRPM3UL1-HdYIg";
+    "eyJhbGciOiJSUzUxMiIsImN0eSI6IkpXVCIsImlzcyI6IkhFUkUiLCJhaWQiOiJGZE5kOXpEN1ZBck52anhGOUNnUiIsImlhdCI6MTczNzY2NDYxNCwiZXhwIjoxNzM3NzUxMDE0LCJraWQiOiJqMSJ9.ZXlKaGJHY2lPaUprYVhJaUxDSmxibU1pT2lKQk1qVTJRMEpETFVoVE5URXlJbjAuLmJwSVdqT0xUSWtvR0E1bGp0X2d1RGcuU01iVzB0LTNYS3N6b2NmZ0E3enFhNHFwVFFOUkxadDB4c0lOcUkySDlZRENTTUE2ZzVTSVhzR0pqXzNKX1p0OGRfV01PanpIdHBLYXE4WlJiUlFJSU5hbzVCU2tfbDFzSGZ0SkU1SzN3UTUtd0hOY3d2c2lDWHdzQXUwcHQ2RUJzc2pYa1ZxVXhQS1JpbkppTXk0T21ORXJyMDZ5NUNyYXFoaXhnTmJnSVRjLmIzQzB3dnlVUFhCRlYtQV92b0xkNjY5V0Fub1J1ZW96Uk9ibVBselBQUFE.jKhUDprBW6mpJKETG4twVmzxjDIzPDiXBUKU7UJfoHKJBBxyWcmnHO7J7nU3iDFRVsVEvTV8Ohf9ZtG0HLldRFUIQ-TS33uzjXlkT76ZZSNxvFDFyuuwErnbDInBF195JkaRQiIimSynGQ7sKZZFIHwTRuJvY7zHkvmwRRmCmmOtJui5EdbLQbS4U-9_l5zChLUSLVaL7gHBqW3CtcnVXML0bYq155TzybPYDnWAaqZ09ftcOIdujTHqAOKku8Vy_EDw88HKmD3yq1oIZWKsc0N2rqWn24VqtlFVXoR2a98-UWTZq5OrBO6UtWd5jFCjotoF3htAOSkS1m3QsffzQQ";
 
   let radius;
 
@@ -53,14 +53,14 @@ const EvCircle = ({ map }) => {
         );
 
         if (JSON.stringify(fetchedEVData) !== JSON.stringify(evData)) {
-          console.log("Обновление данных зарядных станций");
+          console.log("Оновлення зар станцій");
           dispatch(setEvData(fetchedEVData));
         }
 
         drawEVMarkers(map, fetchedEVData, map.getZoom(), evFilters);
-        toast.success("Данные зарядных станций успешно загружены!");
+        toast.success("Данні зарядних станцій успішно завантажені!");
       } catch (error) {
-        toast.error("Ошибка загрузки данных зарядных станций!");
+        toast.error("Помилка при завантаженні зарядних станцій");
         console.error(error);
       }
     };
