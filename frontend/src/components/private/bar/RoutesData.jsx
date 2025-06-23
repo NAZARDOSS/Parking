@@ -5,7 +5,7 @@ import { getRoute } from '../lib/Requests.ts';
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'react-toastify';
 
-const API_URL = `${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
 function RoutesData({ map, mapboxAccessToken }) {
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);

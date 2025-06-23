@@ -4,7 +4,7 @@ import { toggleProfileVisibility } from '../Store/store';
 import { Dialog, DialogActions, DialogContent, DialogTitle, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = `${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
 function ProfileBlock({setIsLoggedIn}) {
   const [position, setPosition] = useState({ top: 100, left: 100 });
   const [isDragging, setIsDragging] = useState(false);
