@@ -70,9 +70,9 @@ const ParkingCircle = ({ map }) => {
           map.getZoom(),
           parkingFilters
         );
-        toast.success("Данные парковок успешно загружены!");
+        toast.success("Данні парковок успішно завантажені!");
       } catch (error) {
-        toast.error("Ошибка загрузки данных парковок!");
+        toast.error("Помилка завантаження даних парковок!");
         console.error(error);
       }
     };

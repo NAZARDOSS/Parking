@@ -24,7 +24,6 @@ function App() {
           
           if (response.ok) {
             setIsLoggedIn(true);
-            // navigate('/map'); 
           } else {
             setIsLoggedIn(false);
           }
