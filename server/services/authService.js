@@ -2,8 +2,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { getConnection } from '../config/db.js';
-import dotenv from 'dotenv';
-dotenv.config();
+
+if (process.env.NODE_ENV !== 'production') {
+  const dotenv = await import('dotenv');
+  dotenv.config();
+}
+
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 console.log('Google Client ID:', process.env.GOOGLE_CLIENT_ID);
