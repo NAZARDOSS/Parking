@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import GoogleAuth from './GoogleAuth';
 import { useNavigate } from 'react-router-dom'; 
 
+const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+
 function RegistrationForm({ onSwitchToLogin, setIsLoggedIn }) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -73,7 +75,7 @@ function RegistrationForm({ onSwitchToLogin, setIsLoggedIn }) {
     };
 
     try {
-      const response = await fetch('http://localhost:5005/api/auth/signin', {
+      const response = await fetch(`${API_URL}/auth/signin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

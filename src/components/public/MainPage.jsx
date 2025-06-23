@@ -16,7 +16,7 @@ function MainPage(props) {
   }, [props.isLoggedIn, navigate]);
 
   return (
-    <GoogleOAuthProvider clientId="536200756584-ngpj4eqj9vg97g0q97rs7ibvctpaapt2.apps.googleusercontent.com">
+    <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID}>
       <div className="flex h-screen font-sans">
         <div className="flex-1 bg-gray-100 flex items-center justify-center">
           <img src={parking} alt="Parking" className="w-72 h-72 opacity-50" />

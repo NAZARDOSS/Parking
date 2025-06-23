@@ -4,6 +4,7 @@ import { toggleProfileVisibility } from '../Store/store';
 import { Dialog, DialogActions, DialogContent, DialogTitle, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
+const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
 function ProfileBlock({setIsLoggedIn}) {
   const [position, setPosition] = useState({ top: 100, left: 100 });
   const [isDragging, setIsDragging] = useState(false);
@@ -46,7 +47,7 @@ function ProfileBlock({setIsLoggedIn}) {
     }
 
     try {
-      const response = await fetch('http://localhost:5005/api/auth/user-info', {
+      const response = await fetch(`${API_URL}/auth/user-info`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

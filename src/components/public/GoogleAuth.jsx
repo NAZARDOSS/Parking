@@ -2,6 +2,8 @@ import React from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom'; 
 
+const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+
 function GoogleAuth({ setIsLoggedIn }) {
   const navigate = useNavigate();
   const handleGoogleLoginSuccess = async (response) => {
@@ -10,7 +12,7 @@ function GoogleAuth({ setIsLoggedIn }) {
       console.log('Google login response:', response);
 
       const serverResponse = await fetch(
-        'http://localhost:5005/api/auth/google-login',
+        `${API_URL}/auth/google-login`,
         {
           method: 'POST',
           headers: {

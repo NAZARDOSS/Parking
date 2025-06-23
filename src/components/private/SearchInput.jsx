@@ -3,6 +3,7 @@ import mapboxgl from "mapbox-gl";
 import "../../styles/searchInput.css";
 import RouteSelectionForm from "./RouteSelectionForm.jsx";
 
+const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
 const SearchInput = ({ map, placeholder = "Search", apiKey, onResultSelect, userLocation }) => {
   const [startPointQuery, setStartPointQuery] = useState("");
   const [finishPointQuery, setFinishPointQuery] = useState("");
@@ -39,7 +40,7 @@ const SearchInput = ({ map, placeholder = "Search", apiKey, onResultSelect, user
 
   const saveRouteInfo = async (startPointCoordinates, finishPointCoordinates, finishPointQuery) => {
     try {
-      const response = await fetch('http://localhost:5005/api/requests/routeInfo', {
+      const response = await fetch(`${API_URL}/requests/routeInfo`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import GoogleAuth from './GoogleAuth';
 import { useNavigate } from 'react-router-dom';
 
+const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
 function LogInForm({ onSwitchToRegister, setIsLoggedIn }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -26,7 +27,7 @@ function LogInForm({ onSwitchToRegister, setIsLoggedIn }) {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:5005/api/auth/login', {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

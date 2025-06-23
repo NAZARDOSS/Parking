@@ -4,6 +4,8 @@ import Map from './components/private/Map';
 import MainPage from './components/public/MainPage';
 import './App.css';
 
+const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -13,7 +15,7 @@ function App() {
     
     
     if (token) {
-      fetch('http://localhost:5005/api/auth/user-info', {
+      fetch(`${API_URL}/auth/user-info`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

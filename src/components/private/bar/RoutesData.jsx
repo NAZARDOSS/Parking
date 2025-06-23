@@ -5,6 +5,7 @@ import { getRoute } from '../lib/Requests.ts';
 import mapboxgl from 'mapbox-gl';
 import { toast } from 'react-toastify';
 
+const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
 function RoutesData({ map, mapboxAccessToken }) {
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ function RoutesData({ map, mapboxAccessToken }) {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:5005/api/requests/getRoutes', {
+      const response = await fetch(`${API_URL}/requests/getRoutes`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
