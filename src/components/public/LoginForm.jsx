@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import GoogleAuth from './GoogleAuth';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+const API_URL = `${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
 function LogInForm({ onSwitchToRegister, setIsLoggedIn }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);

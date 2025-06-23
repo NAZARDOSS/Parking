@@ -31,7 +31,7 @@ const RouteSelectionForm = ({
     return () => clearTimeout(timer);
   }, []);
 
-  const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+  const API_URL = `${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
 
   const saveRouteInfo = async (startPointCoordinates, finishPointCoordinates, finishPointQuery) => {
     try {

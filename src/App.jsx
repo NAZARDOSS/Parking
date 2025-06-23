@@ -4,7 +4,7 @@ import Map from './components/private/Map';
 import MainPage from './components/public/MainPage';
 import './App.css';
 
-const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+const API_URL = `${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);

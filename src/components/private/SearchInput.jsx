@@ -3,7 +3,7 @@ import mapboxgl from "mapbox-gl";
 import "../../styles/searchInput.css";
 import RouteSelectionForm from "./RouteSelectionForm.jsx";
 
-const API_URL = `http://${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
+const API_URL = `${process.env.REACT_APP_HOST}:${process.env.REACT_APP_PORT}/api`;
 const SearchInput = ({ map, placeholder = "Search", apiKey, onResultSelect, userLocation }) => {
   const [startPointQuery, setStartPointQuery] = useState("");
   const [finishPointQuery, setFinishPointQuery] = useState("");
