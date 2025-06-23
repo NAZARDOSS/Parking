@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate,} from 'react-router-dom';
 import Map from './components/private/Map';
 import MainPage from './components/public/MainPage';
 import './App.css';
@@ -12,18 +12,17 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     console.log('token: ', token);
-    
-    
+
     if (token) {
       fetch(`${API_URL}/auth/user-info`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       })
         .then((response) => {
           console.log('response userInfo: ', response);
-          
+
           if (response.ok) {
             setIsLoggedIn(true);
           } else {
@@ -37,8 +36,25 @@ function App() {
     }
   }, []);
 
+  // Кнопка с логикой авторизации и перехода
+  const LoginButton = () => {
+    const navigate = useNavigate();
+
+    const handleLogin = () => {
+      setIsLoggedIn(true);
+      navigate('/map');
+    };
+
+    return (
+      <button onClick={handleLogin} style={{ position: 'fixed', top: 10, right: 10, color: 'white' }}>
+        Without Registration
+      </button>
+    );
+  };
+
   return (
     <Router>
+      <LoginButton />
       <Routes>
         <Route
           path="/"
@@ -48,7 +64,7 @@ function App() {
           path="/map"
           element={
             isLoggedIn ? (
-              <Map setIsLoggedIn = {setIsLoggedIn}/>
+              <Map setIsLoggedIn={setIsLoggedIn} />
             ) : (
               <Navigate to="/" replace />
             )
