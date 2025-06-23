@@ -5,7 +5,7 @@ export const authenticateToken = (req, res, next) => {
         res.status(401).json({ error: 'No token provided' });
         return;
     }
-    jwt.verify(token, 'secretKey', (err, user) => {
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) {
             res.status(403).json({ error: 'Invalid or expired token' });
             return;
