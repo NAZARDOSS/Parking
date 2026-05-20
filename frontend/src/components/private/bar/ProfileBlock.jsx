@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { toggleProfileVisibility } from '../Store/store';
-import { Dialog, DialogActions, DialogContent, DialogTitle, Button } from '@mui/material';
+import { Dialog, DialogActions, DialogTitle, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { apiRequest, clearAuthToken, getAuthToken } from '../../../config/apiClient.js';
 
-const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
 function ProfileBlock({setIsLoggedIn}) {
   const [position, setPosition] = useState({ top: 100, left: 100 });
   const [isDragging, setIsDragging] = useState(false);
@@ -39,7 +39,7 @@ function ProfileBlock({setIsLoggedIn}) {
   };
 
   const fetchUserInfo = async () => {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) {
       setError('No token found');
       setLoading(false);
@@ -47,18 +47,7 @@ function ProfileBlock({setIsLoggedIn}) {
     }
 
     try {
-      const response = await fetch(`${API_URL}/auth/user-info`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch user information');
-      }
-
-      const data = await response.json();
+      const data = await apiRequest('/auth/user-info');
       setUserInfo(data);
     } catch (error) {
       setError(error.message);
@@ -72,7 +61,7 @@ function ProfileBlock({setIsLoggedIn}) {
   };
 
   const confirmLogout = () => {
-    localStorage.removeItem('token');
+    clearAuthToken();
     navigate('/');
     setIsLoggedIn(false)
   };

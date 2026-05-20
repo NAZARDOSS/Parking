@@ -3,9 +3,220 @@ import mapboxgl from "mapbox-gl";
 let activeEVMarkers = [];
 let activeMarkers = [];
 
-const isMarkerInBounds = (map, markerLngLat) => {
-  const bounds = map.getBounds();
-  return bounds.contains(markerLngLat);
+const getEVPosition = (station) => {
+  const latitude = Number(station.position?.latitude ?? station.position?.lat);
+  const longitude = Number(station.position?.longitude ?? station.position?.lng);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return { latitude, longitude };
+};
+
+const normalizeText = (value) => String(value ?? "").trim().toLowerCase();
+
+const normalizeTagValue = (value) => normalizeText(value).replace(/\s+/g, "_");
+
+const toNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const hasActiveFilters = (filters = {}) =>
+  Object.values(filters).some((value) => {
+    if (typeof value === "boolean") return value;
+    return String(value ?? "").trim() !== "";
+  });
+
+const includesText = (value, needle) => normalizeText(value).includes(normalizeText(needle));
+
+const hasAnyText = (values, needle) =>
+  !String(needle ?? "").trim() || values.some((value) => includesText(value, needle));
+
+const getParkingProperties = (parking) => parking.properties || {};
+
+const getParkingTags = (parking) => getParkingProperties(parking).tags || {};
+
+const getParkingType = (parking) => normalizeTagValue(getParkingProperties(parking).parkingType);
+
+const getPaymentMethods = (parking) => getParkingProperties(parking).paymentMethods || {};
+
+const hasParkingCategory = (parking, category) =>
+  (getParkingProperties(parking).categories || []).includes(category);
+
+const isStreetParking = (parking) => {
+  const type = getParkingType(parking);
+  return (
+    hasParkingCategory(parking, "parking.street") ||
+    ["street_side", "lane", "on_kerb", "half_on_kerb", "shoulder"].includes(type)
+  );
+};
+
+const matchesParkingFilters = (parking, filters = {}) => {
+  const properties = getParkingProperties(parking);
+  const tags = getParkingTags(parking);
+  const parkingType = getParkingType(parking);
+  const capacity = toNumber(properties.capacity);
+  const disabledCapacity = toNumber(properties.disabledCapacity);
+  const maxHeight = toNumber(properties.maxHeight);
+  const paymentMethods = getPaymentMethods(parking);
+  const searchableValues = [
+    parking.name,
+    parking.address,
+    properties.operator,
+    properties.parkingType,
+    properties.access,
+    properties.fee,
+    tags.ref,
+  ];
+
+  if (!hasAnyText(searchableValues, filters.search)) return false;
+  if (!hasAnyText([properties.operator], filters.operator)) return false;
+
+  if (filters.free && !properties.isFree) return false;
+  if (filters.paid && !properties.isPaid) return false;
+  if (filters.publicAccess && !properties.isPublic) return false;
+  if (filters.private && !properties.private) return false;
+  if (filters.customers && !properties.isCustomersOnly) return false;
+  if (filters.permit && !properties.isPermitOnly) return false;
+
+  if (filters.wheelchair && !hasParkingCategory(parking, "wheelchair")) return false;
+  if (filters.disabledSpaces && !(disabledCapacity > 0)) return false;
+  if (filters.twentyFour && !properties.twentyFourHour) return false;
+  if (filters.hasOpeningHours && !properties.openingHours) return false;
+
+  if (filters.garage && !["underground", "multistorey"].includes(parkingType)) return false;
+  if (filters.underground && parkingType !== "underground") return false;
+  if (filters.multistorey && parkingType !== "multistorey") return false;
+  if (filters.surface && !["surface", ""].includes(parkingType)) return false;
+  if (filters.street && !isStreetParking(parking)) return false;
+  if (filters.streetSide && parkingType !== "street_side") return false;
+  if (filters.parkingSpace && !hasParkingCategory(parking, "parking.space")) return false;
+
+  if (filters.covered && !properties.covered) return false;
+  if (filters.lit && !properties.lit) return false;
+  if (filters.supervised && !properties.supervised) return false;
+  if (filters.surveillance && !properties.surveillance) return false;
+  if (filters.hasCapacity && !(capacity > 0)) return false;
+  if (filters.minCapacity && !(capacity >= Number(filters.minCapacity))) return false;
+  if (filters.hasMaxStay && !properties.maxStay) return false;
+  if (filters.hasMaxHeight && !(maxHeight > 0)) return false;
+  if (filters.maxHeightMeters && !(maxHeight >= Number(filters.maxHeightMeters))) return false;
+  if (filters.acceptsCash && !(paymentMethods.cash || paymentMethods.coins)) return false;
+  if (filters.acceptsCard && !(paymentMethods.credit_cards || paymentMethods.debit_cards)) return false;
+  if (filters.acceptsContactless && !paymentMethods.contactless) return false;
+  if (filters.acceptsApp && !paymentMethods.app) return false;
+  if (filters.chargingSpaces && !properties.hasChargingSpaces) return false;
+
+  return true;
+};
+
+const getEVProperties = (station) => station.properties || {};
+
+const getEVConnectionValues = (station) => {
+  const properties = getEVProperties(station);
+  const connections = properties.connections || [];
+
+  return [
+    ...(properties.connectionTypes || []),
+    ...(properties.currentTypes || []),
+    ...(properties.levels || []),
+    ...connections.flatMap((connection) => [
+      connection.connectionType,
+      connection.currentType,
+      connection.level,
+    ]),
+  ].filter(Boolean);
+};
+
+const evConnectionIncludes = (station, needle) =>
+  getEVConnectionValues(station).some((value) => includesText(value, needle));
+
+const evHasLevel = (station, levelId, label) => {
+  const properties = getEVProperties(station);
+  return (properties.levelIds || []).includes(levelId) || evConnectionIncludes(station, label);
+};
+
+const evHasCurrent = (station, kind) => {
+  const values = getEVConnectionValues(station).map(normalizeText).join(" ");
+  return kind === "dc"
+    ? values.includes("dc") || values.includes("direct current")
+    : values.includes("ac") || values.includes("alternating current");
+};
+
+const isFreeEVCharging = (station) => {
+  const usageCost = normalizeText(getEVProperties(station).usageCost);
+  return Boolean(usageCost) && (usageCost.includes("free") || usageCost.includes("no cost") || usageCost === "0");
+};
+
+const isPaidEVCharging = (station) => {
+  const properties = getEVProperties(station);
+  return Boolean(properties.isPayAtLocation || (properties.usageCost && !isFreeEVCharging(station)));
+};
+
+const matchesEVFilters = (station, filters = {}) => {
+  const properties = getEVProperties(station);
+  const maxPowerKw = toNumber(properties.maxPowerKw);
+  const points = toNumber(properties.numberOfPoints) || toNumber(properties.totalConnectorQuantity) || 0;
+  const usageType = normalizeText(properties.usageType);
+  const status = normalizeText(properties.status);
+  const searchableValues = [
+    station.name,
+    station.address,
+    properties.operator,
+    properties.usageType,
+    properties.status,
+    properties.usageCost,
+    ...getEVConnectionValues(station),
+  ];
+
+  if (!hasAnyText(searchableValues, filters.search)) return false;
+  if (!hasAnyText([properties.operator], filters.operator)) return false;
+  if (filters.tesla && !hasAnyText(searchableValues, "tesla")) return false;
+  if (filters.operational && !(properties.isOperational || status.includes("operational"))) return false;
+  if (filters.available && !status.includes("available")) return false;
+  if (filters.planned && !status.includes("planned")) return false;
+  if (filters.recentlyVerified && !properties.recentlyVerified) return false;
+  if (filters.publicAccess && !usageType.includes("public")) return false;
+  if (filters.privateAccess && !(usageType.includes("private") || usageType.includes("staff") || usageType.includes("customer"))) return false;
+  if (filters.payAtLocation && !properties.isPayAtLocation) return false;
+  if (filters.membershipRequired && !properties.isMembershipRequired) return false;
+  if (filters.accessKeyRequired && !properties.isAccessKeyRequired) return false;
+  if (filters.free && !isFreeEVCharging(station)) return false;
+  if (filters.paid && !isPaidEVCharging(station)) return false;
+  if (filters.level1 && !evHasLevel(station, 1, "Level 1")) return false;
+  if (filters.level2 && !evHasLevel(station, 2, "Level 2")) return false;
+  if (filters.level3 && !evHasLevel(station, 3, "Level 3")) return false;
+  if (filters.ac && !evHasCurrent(station, "ac")) return false;
+  if (filters.dc && !evHasCurrent(station, "dc")) return false;
+  if (filters.type1 && !(evConnectionIncludes(station, "Type 1") || evConnectionIncludes(station, "J1772"))) return false;
+  if (filters.type2 && !evConnectionIncludes(station, "Type 2")) return false;
+  if (filters.ccs && !evConnectionIncludes(station, "CCS")) return false;
+  if (filters.chademo && !evConnectionIncludes(station, "CHAdeMO")) return false;
+  if (filters.teslaConnector && !evConnectionIncludes(station, "Tesla")) return false;
+  if (filters.nacs && !evConnectionIncludes(station, "NACS")) return false;
+  if (filters.schuko && !evConnectionIncludes(station, "Schuko")) return false;
+  if (filters.cee && !evConnectionIncludes(station, "CEE")) return false;
+  if (filters.minPowerKw && !(maxPowerKw >= Number(filters.minPowerKw))) return false;
+  if (filters.minPoints && !(points >= Number(filters.minPoints))) return false;
+  if (filters.hasComments && !properties.hasComments) return false;
+  if (filters.hasMedia && !properties.hasMedia) return false;
+  if (filters.hasCheckins && !properties.hasCheckins) return false;
+
+  return true;
+};
+
+const removeClusterSource = (map, sourceId) => {
+  if (!map?.getSource(sourceId)) return;
+
+  [`${sourceId}-clusters`, `${sourceId}-cluster-count`, `${sourceId}-unclustered-point`].forEach((layerId) => {
+    if (map.getLayer(layerId)) {
+      map.removeLayer(layerId);
+    }
+  });
+
+  map.removeSource(sourceId);
 };
 
 export const initializeMap = (container, mapboxAccessToken) => {
@@ -96,16 +307,11 @@ const addClusters = (
   clusterColors: string[],
   pointColor: string
 ): void => {
-  console.log('add clusters! ');
+  if (!map) return;
 
-  if (!map || !data || data.length === 0) return;
+  removeClusterSource(map, sourceId);
 
-  if (map.getSource(sourceId)) {    
-    map.removeLayer(`${sourceId}-clusters`);
-    map.removeLayer(`${sourceId}-cluster-count`);
-    map.removeLayer(`${sourceId}-unclustered-point`);
-    map.removeSource(sourceId);
-  }
+  if (!data || data.length === 0) return;
 
   map.addSource(sourceId, {
     type: "geojson",
@@ -182,27 +388,13 @@ const addClusters = (
 };
 
 const filterEVData = (map: mapboxgl.Map, data, filters, sourceId) => {
+  removeClusterSource(map, sourceId);
 
-  if (map.getSource(sourceId)) {
-    map.removeLayer(`${sourceId}-clusters`);
-    map.removeLayer(`${sourceId}-cluster-count`);
-    map.removeLayer(`${sourceId}-unclustered-point`);
-    map.removeSource(sourceId);
-    console.log(`Cluster source and layers with ID "${sourceId}" removed.`);
-  }
-
-  return data.filter((station) => {
-    if (filters.tesla && station.name !== 'Tesla') {
-      console.log(`Excluding ${station.name} because it's not Tesla`);
-      return false;
-    }
-    return true;
-  });
+  return data.filter((station) => matchesEVFilters(station, filters));
 };
 
 
-export const drawEVMarkers = (map, evStations, zoomValue, filters) => {
-  console.log("drawEV: ", filters);
+export const drawEVMarkers = (map, evStations, zoomValue, filters, onSelectPlace) => {
   const sourceId = "ev-clusters";
   const clusterColors = ["#3cb371", "#2e8b57", "#006400"];
   const pointColor = "#228b22";
@@ -210,53 +402,57 @@ export const drawEVMarkers = (map, evStations, zoomValue, filters) => {
   activeEVMarkers.forEach((marker) => marker.remove());
   activeEVMarkers = [];
 
-  if (Object.keys(filters).length < 1) {
-    console.log("No filters applied: ", evStations);
-  } else {
-    console.log("Filters applied: ", filters);
+  if (hasActiveFilters(filters)) {
     evStations = filterEVData(map, evStations, filters, sourceId);
-    console.log("evStations after FILTERS", evStations);
   }
 
   const bounds = map.getBounds();
 
   const filteredEVStations = evStations.filter((station) => {
-    const { latitude, longitude } = station.position;
+    const position = getEVPosition(station);
+    if (!position) return false;
+
+    const { latitude, longitude } = position;
     const lngLat = [longitude, latitude];
     return bounds.contains(lngLat);
   });
 
-  console.log(
-    `Visible EV stations: ${filteredEVStations.length} out of ${evStations.length}`
-  );
-
   if (zoomValue < 14) {
-    const clusterData = filteredEVStations.map((station) => ({
-      lon: station.position.longitude,
-      lat: station.position.latitude,
-    }));
+    const clusterData = filteredEVStations
+      .map((station) => {
+        const position = getEVPosition(station);
+        return position
+          ? {
+              lon: position.longitude,
+              lat: position.latitude,
+            }
+          : null;
+      })
+      .filter(Boolean);
 
     addClusters(map, clusterData, sourceId, clusterColors, pointColor);
   } else {
+    removeClusterSource(map, sourceId);
+
     filteredEVStations.forEach((station) => {
-      const { latitude, longitude } = station.position;
+      const position = getEVPosition(station);
+      if (!position) return;
+
+      const { latitude, longitude } = position;
       const markerLngLat = [longitude, latitude];
 
       const marker = new mapboxgl.Marker()
         .setLngLat(markerLngLat)
         .addTo(map);
 
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-        <h3>${station.name}</h3>
-        <p>Latitude: ${latitude}</p>
-        <p>Longitude: ${longitude}</p>
-      `);
-
-      popup.on("open", () => {
-        console.log("Popup открыт для evStations:", evStations);
+      const element = marker.getElement();
+      element.style.cursor = "pointer";
+      element.setAttribute("title", station.name || "EV charger");
+      element.addEventListener("click", (event) => {
+        event.stopPropagation();
+        onSelectPlace?.(station);
       });
 
-      marker.setPopup(popup);
       activeEVMarkers.push(marker); 
     });
   }
@@ -266,48 +462,12 @@ export const drawEVMarkers = (map, evStations, zoomValue, filters) => {
 
 
 const filterParkingData = (map, data, filters, sourceId) => {  
-  return data.filter(parking => {
-    if (map.getSource(sourceId)) {
-      map.removeLayer(`${sourceId}-clusters`);
-      map.removeLayer(`${sourceId}-cluster-count`);
-      map.removeLayer(`${sourceId}-unclustered-point`);
-      map.removeSource(sourceId);
-      console.log(`Cluster source and layers with ID "${sourceId}" removed.`);
-    }
-    const categories = parking.properties.categories || [];
-    const restrictions = parking.properties.restrictions || []
-    if (filters.garage && !(categories.includes('parking.underground') || categories.includes('parking.multistorey'))) {
-      return false
-    }
+  removeClusterSource(map, sourceId);
 
-    if (filters.wheelchair && !(categories.includes("wheelchair"))) {
-      return false;
-    }
-
-    if (filters.free && !(categories.includes("no_fee") || categories.includes("no_fee.no"))) {
-      return false;
-    }
-    
-
-    if (filters.twentyFour && !parking.properties.twentyFourHour) {
-      return false;
-    }
-
-    if (filters.private && !parking.properties.private) {
-      return false; 
-    }
-
-    // if (filters.garage && (restrictions.Object.Va('max_height'))) {
-    //   console.log('1>>>>>>>0999', restrictions );
-    //   return false; 
-    // }
-    return true; 
-  });
+  return data.filter((parking) => matchesParkingFilters(parking, filters));
 };
 
-export const drawParkingMarkers = (map, parkingData, zoomValue, filters) => {
-  console.log("drawParkingMarkers");
-
+export const drawParkingMarkers = (map, parkingData, zoomValue, filters, onSelectPlace) => {
   activeMarkers.forEach((marker) => marker.remove());
   activeMarkers = [];
   const sourceId = "parking-clusters";
@@ -320,19 +480,16 @@ export const drawParkingMarkers = (map, parkingData, zoomValue, filters) => {
     return bounds.contains(lngLat);
   });
 
-  console.log(
-    `Visible parkingData: ${filteredParkingData.length} из ${parkingData.length}`
-  );
-
   let visibleParkingData = filteredParkingData;
-  if (Object.keys(filters).length > 0) {
-    console.log("Filters applied: ", filters);
+  if (hasActiveFilters(filters)) {
     visibleParkingData = filterParkingData(map, filteredParkingData, filters, sourceId);
   }
 
   if (zoomValue < 14) {
     addClusters(map, visibleParkingData, sourceId, clusterColors, pointColor);
   } else {
+    removeClusterSource(map, sourceId);
+
     visibleParkingData.forEach((parking) => {
       const markerLngLat = [parking.lon, parking.lat];
       const existingMarker = activeMarkers.find((marker) => {
@@ -343,6 +500,9 @@ export const drawParkingMarkers = (map, parkingData, zoomValue, filters) => {
       if (!existingMarker) {
         const el = document.createElement("div");
         el.className = "marker";
+        el.setAttribute("role", "button");
+        el.setAttribute("tabindex", "0");
+        el.setAttribute("title", parking.name || "Parking");
 
         const icon = document.createElement("div");
         icon.className = "marker-icon";
@@ -355,23 +515,20 @@ export const drawParkingMarkers = (map, parkingData, zoomValue, filters) => {
           .setLngLat(markerLngLat)
           .addTo(map);
 
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-          `<h3>Информація про парковку</h3>
-          <p>Широта: ${parking.lat}</p>
-          <p>Довгота: ${parking.lon}</p>`
-        );
+        const handleSelect = (event) => {
+          event.stopPropagation();
+          onSelectPlace?.(parking);
+        };
 
-        popup.on("open", () => {
-          console.log("Popup открыт для парковки:", parking);
+        el.addEventListener("click", handleSelect);
+        el.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            handleSelect(event);
+          }
         });
 
-        marker.setPopup(popup);
         activeMarkers.push(marker);
       }
     });
   }
 };
-
-
-
-

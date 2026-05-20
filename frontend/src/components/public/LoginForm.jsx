@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import GoogleAuth from './GoogleAuth';
 import { useNavigate } from 'react-router-dom';
+import { apiRequest, setAuthToken } from '../../config/apiClient.js';
 
-const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
-function LogInForm({ onSwitchToRegister, setIsLoggedIn }) {
+function LogInForm({ onSwitchToRegister, onForgotPassword, setIsLoggedIn, isGoogleEnabled }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -27,27 +27,16 @@ function LogInForm({ onSwitchToRegister, setIsLoggedIn }) {
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const data = await apiRequest('/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        auth: false,
+        body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Login failed');
-      }
-
-      const data = await response.json();
-
-      localStorage.setItem('token', data.token);
-      console.log('Log in successful:', data);
+      setAuthToken(data.token);
       setIsLoggedIn(true);
       navigate('/map');
     } catch (error) {
-      console.error('Error during login:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -85,6 +74,13 @@ function LogInForm({ onSwitchToRegister, setIsLoggedIn }) {
           className="w-full px-4 py-2 text-gray-900 border border-gray-300 rounded"
         />
         <button
+          type="button"
+          onClick={onForgotPassword}
+          className="w-full text-right text-sm text-purple-400 hover:underline"
+        >
+          Forgot password?
+        </button>
+        <button
           type="submit"
           className="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded"
           disabled={loading}
@@ -92,10 +88,14 @@ function LogInForm({ onSwitchToRegister, setIsLoggedIn }) {
           {loading ? 'Loading...' : 'Log In'}
         </button>
         {error && <p className="text-red-500 text-center">{error}</p>}
-        <p className="text-center text-sm text-gray-400">Or log in with</p>
-        <div className="flex justify-center">
-          <GoogleAuth setIsLoggedIn={setIsLoggedIn} />
-        </div>
+        {isGoogleEnabled && (
+          <>
+            <p className="text-center text-sm text-gray-400">Or log in with</p>
+            <div className="flex justify-center">
+              <GoogleAuth setIsLoggedIn={setIsLoggedIn} text="signin_with" />
+            </div>
+          </>
+        )}
       </form>
     </div>
   );

@@ -1,11 +1,5 @@
-import React from 'react';
-
-function DirectionNavigator(props) {
-    return (
-        <div>
-            
-        </div>
-    );
+function DirectionNavigator() {
+  return <div />;
 }
 
 export default DirectionNavigator;

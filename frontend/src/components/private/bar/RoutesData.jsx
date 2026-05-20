@@ -1,207 +1,271 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
-import { toggleRoutesVisibility } from '../Store/store.js';
-import { getRoute } from '../lib/Requests.ts';
-import mapboxgl from 'mapbox-gl';
-import { toast } from 'react-toastify';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDispatch } from "react-redux";
+import { Icon } from "@iconify/react";
+import { toast } from "react-hot-toast";
+import { toggleRoutesVisibility } from "../Store/store.js";
+import { apiRequest } from "../../../config/apiClient.js";
 
-const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
-function RoutesData({ map, mapboxAccessToken }) {
+const formatDuration = (seconds = 0) => {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
+};
+
+const formatDistance = (meters = 0) => {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+};
+
+const formatDate = (value) => {
+  if (!value) return "Saved route";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Saved route";
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
+const toLngLat = (latitude, longitude) => {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return [lng, lat];
+};
+
+function RoutesData({ onResultSelect }) {
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [position, setPosition] = useState({ top: 100, left: 100 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [selectedRouteId, setSelectedRouteId] = useState(null);
+  const [activeRouteSummary, setActiveRouteSummary] = useState(null);
+  const [isDrawingRoute, setIsDrawingRoute] = useState(false);
+  const isMountedRef = useRef(true);
   const dispatch = useDispatch();
-
-  const handleMouseDown = (e) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - position.left, y: e.clientY - position.top });
-  };
-
-  const handleMouseMove = (e) => {
-    if (isDragging) {
-      setPosition({
-        top: e.clientY - dragStart.y,
-        left: e.clientX - dragStart.x,
-      });
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
 
   const fetchRoutes = async () => {
     setLoading(true);
-    setError(null);
+    setError("");
 
     try {
-      const response = await fetch(`${API_URL}/requests/getRoutes`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch routes');
-      }
-
-      const data = await response.json();
-      setRoutes(data);
-    } catch (error) {
-      setError(error.message);
+      const data = await apiRequest("/requests/getRoutes");
+      if (!isMountedRef.current) return;
+      setRoutes(Array.isArray(data) ? data : []);
+    } catch (requestError) {
+      if (!isMountedRef.current) return;
+      setError(requestError.message || "Could not load routes.");
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchRoutes();
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
-  const handleRefresh = () => {
-    fetchRoutes();
-  };
+  const filteredRoutes = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return routes;
+
+    return routes.filter((route) =>
+      [
+        route.finish_name,
+        route.start_latitude,
+        route.start_longitude,
+        route.finish_latitude,
+        route.finish_longitude,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
+  }, [routes, search]);
 
   const handleClose = () => {
     dispatch(toggleRoutesVisibility());
   };
 
-  const drawRoute = (map, geometry) => {
-    if (!map.getSource('route')) {
-      map.addSource('route', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {},
-          geometry,
-        },
-      });
-
-      map.addLayer({
-        id: 'route',
-        type: 'line',
-        source: 'route',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': '#3b82f6',
-          'line-width': 6,
-        },
-      });
-    } else {
-      const source = map.getSource('route');
-      source.setData({
-        type: 'Feature',
-        properties: {},
-        geometry,
-      });
-    }
+  const handleRefresh = () => {
+    setSelectedRouteId(null);
+    setActiveRouteSummary(null);
+    fetchRoutes();
   };
 
-  const handleRouteRequest = async (start, end, travelMode) => {
-    if (!map) return;
-    console.log('handleRoute');
-    
+  const handleRouteClick = async (route) => {
+    if (!onResultSelect || isDrawingRoute) return;
+
+    const startPoint = toLngLat(route.start_latitude, route.start_longitude);
+    const finishPoint = toLngLat(route.finish_latitude, route.finish_longitude);
+
+    if (!startPoint || !finishPoint) {
+      toast.error("This saved route has invalid coordinates.");
+      return;
+    }
+
+    setIsDrawingRoute(true);
+    setSelectedRouteId(route.id);
+    setActiveRouteSummary(null);
+
     try {
-      const geometry = await getRoute(start, end, travelMode, mapboxAccessToken);
-      drawRoute(map, geometry);
-    } catch (error) {
-      toast.error('Ошибка при запросе маршрута.');
-      console.error('Ошибка при запросе маршрута:', error);
+      const routeDetails = await onResultSelect({
+        startPoint,
+        finishPoint,
+        travelMode: "driving",
+      });
+
+      if (!routeDetails || !isMountedRef.current) return;
+
+      setActiveRouteSummary({
+        duration: routeDetails.duration,
+        distance: routeDetails.distance,
+      });
+    } catch (routeError) {
+      toast.error(routeError.message || "Could not build this route.");
+    } finally {
+      setIsDrawingRoute(false);
     }
   };
-
-  const handleSearchResult = ({ startPoint, finishPoint }) => {
-    console.log('handleSearchResult');
-    console.log('startPoint: ', startPoint, 'finishPoint: ', finishPoint);
-  
-    if (!map || !finishPoint) return;
-  
-    const correctedStartPoint = [parseFloat(startPoint[1]), parseFloat(startPoint[0])];
-    const correctedFinishPoint = [parseFloat(finishPoint[1]), parseFloat(finishPoint[0])];
-  
-    console.log('Corrected startPoint: ', correctedStartPoint, 'Corrected finishPoint: ', correctedFinishPoint);
-  
-    handleRouteRequest(correctedStartPoint, correctedFinishPoint, 'driving');
-    map.flyTo({ center: correctedFinishPoint, zoom: 14, essential: true });
-    new mapboxgl.Marker().setLngLat(correctedFinishPoint).addTo(map);
-  };
-  
 
   return (
-    <div
-      className="w-96 bg-blue-900 p-4 rounded-lg shadow-md flex flex-col items-center absolute cursor-move select-none"
-      style={{ top: position.top, left: position.left }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
-      <div className="w-full flex justify-between items-center mb-4">
-        <h2 className="text-white text-xl font-bold">Routes History</h2>
-        <button
-          onClick={handleClose}
-          className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
-        >
-          ×
-        </button>
-      </div>
+    <aside className="absolute bottom-5 left-24 top-5 z-30 flex w-[390px] max-w-[calc(100vw-8rem)] flex-col overflow-hidden rounded-lg border border-blue-300/20 bg-[#031A3A]/95 text-white shadow-2xl backdrop-blur">
+      <header className="border-b border-white/10 px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold uppercase text-blue-200">Navigation</div>
+            <h2 className="text-xl font-bold leading-tight">Saved routes</h2>
+            <p className="mt-1 text-sm text-slate-300">{routes.length} saved destinations</p>
+          </div>
 
-      <button
-        onClick={handleRefresh}
-        className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg mb-4 hover:bg-blue-600 transition"
-      >
-        Refresh
-      </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              className="flex h-9 w-9 items-center justify-center rounded-md bg-white/10 text-white hover:bg-white/20"
+              aria-label="Refresh saved routes"
+              title="Refresh"
+            >
+              <Icon icon="mdi:refresh" className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="flex h-9 w-9 items-center justify-center rounded-md bg-white/10 text-white hover:bg-white/20"
+              aria-label="Close saved routes"
+              title="Close"
+            >
+              <Icon icon="mdi:close" className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
 
-      <div
-        className="w-full overflow-y-auto bg-white rounded-lg"
-        style={{ maxHeight: '300px' }}
-      >
-        {loading && <p className="text-center p-4 text-blue-900">Loading...</p>}
-        {error && <p className="text-center p-4 text-red-500">{error}</p>}
-        {!loading && !error && (
-          <ul className="w-full">
-            {routes.map((route, index) => (
-              <li
-                key={route.id || index}
-                className="flex justify-between items-center bg-white text-black rounded-lg p-3 mb-2 shadow cursor-pointer hover:bg-gray-100"
-                onClick={() =>
-                  handleSearchResult({
-                    startPoint: [route.start_latitude, route.start_longitude],
-                    finishPoint: [route.finish_latitude, route.finish_longitude],
-                  })
-                }
-              >
-                <div className="flex items-center">
-                  <span className="bg-blue-500 text-white font-bold rounded-full h-8 w-8 flex items-center justify-center mr-3">
-                    G
-                  </span>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold">
-                      Start Coord: {parseFloat(route.start_latitude).toFixed(3)}, {parseFloat(route.start_longitude).toFixed(3)}
-                    </span>
-                    <span className="text-sm font-bold">
-                      Finish: {route.finish_name}
-                    </span>
-                  </div>
-                </div>
-                <button className="bg-blue-500 text-white font-bold rounded-full h-8 w-8 flex items-center justify-center">
-                  →
-                </button>
-              </li>
-            ))}
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-white/10 bg-white px-3 py-2 text-slate-950">
+          <Icon icon="mdi:magnify" className="h-5 w-5 shrink-0 text-blue-800" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search route history"
+            className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-slate-400"
+          />
+        </div>
+      </header>
+
+      {activeRouteSummary ? (
+        <section className="grid grid-cols-2 gap-3 border-b border-white/10 bg-white/5 px-4 py-3">
+          <div>
+            <div className="text-xs text-slate-400">Estimated time</div>
+            <div className="text-base font-bold">{formatDuration(activeRouteSummary.duration)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-400">Distance</div>
+            <div className="text-base font-bold">{formatDistance(activeRouteSummary.distance)}</div>
+          </div>
+        </section>
+      ) : null}
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {loading ? (
+          <div className="flex h-40 flex-col items-center justify-center gap-3 text-slate-300">
+            <Icon icon="mdi:loading" className="h-7 w-7 animate-spin text-blue-200" />
+            <span className="text-sm font-semibold">Loading saved routes...</span>
+          </div>
+        ) : null}
+
+        {!loading && error ? (
+          <div className="rounded-lg border border-red-300/30 bg-red-500/10 px-3 py-3 text-sm text-red-100">
+            {error}
+          </div>
+        ) : null}
+
+        {!loading && !error && filteredRoutes.length === 0 ? (
+          <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-6 text-center">
+            <Icon icon="mdi:map-search-outline" className="mx-auto mb-2 h-8 w-8 text-blue-200" />
+            <div className="font-bold">No routes found</div>
+            <div className="mt-1 text-sm text-slate-300">Build a route from the planner to save it here.</div>
+          </div>
+        ) : null}
+
+        {!loading && !error && filteredRoutes.length > 0 ? (
+          <ul className="space-y-3">
+            {filteredRoutes.map((route, index) => {
+              const routeId = route.id ?? `${route.finish_latitude}-${route.finish_longitude}-${index}`;
+              const isActive = selectedRouteId === route.id;
+
+              return (
+                <li key={routeId}>
+                  <button
+                    type="button"
+                    onClick={() => handleRouteClick(route)}
+                    className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
+                      isActive
+                        ? "border-blue-300 bg-blue-500/20"
+                        : "border-white/10 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-500 text-white">
+                        <Icon icon={isActive && isDrawingRoute ? "mdi:loading" : "mdi:map-marker-path"} className={`h-5 w-5 ${isActive && isDrawingRoute ? "animate-spin" : ""}`} />
+                      </span>
+
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold text-white">
+                          {route.finish_name || "Saved destination"}
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-300">
+                          {formatDate(route.created_at)}
+                        </span>
+                        <span className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                          <Icon icon="mdi:crosshairs-gps" className="h-4 w-4" />
+                          {Number(route.start_latitude).toFixed(4)}, {Number(route.start_longitude).toFixed(4)}
+                        </span>
+                      </span>
+
+                      <Icon icon="mdi:chevron-right" className="mt-2 h-5 w-5 shrink-0 text-blue-200" />
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
-        )}
+        ) : null}
       </div>
-    </div>
+    </aside>
   );
 }
 

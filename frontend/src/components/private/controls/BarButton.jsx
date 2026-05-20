@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { Icon } from "@iconify/react";
 import Bar from "../Bar";
 
@@ -29,18 +29,16 @@ function BarButton({ isBarVisible, setIsBarVisible }) {
       {!isBarVisible && (
         <button
           onClick={toggleBar}
-          className="bar-button flex items-center justify-center absolute top-5 left-5 z-10 bg-blue-950 opacity-90 text-white p-0 rounded-full hover:bg-blue-800 shadow-blurred-3xl"
-          style={{
-            width: "50px",
-            height: "50px",
-          }}
+          className="bar-button absolute left-5 top-5 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-blue-300/30 bg-blue-950/95 p-0 text-white shadow-2xl backdrop-blur hover:bg-blue-800"
+          aria-label="Open navigation"
+          title="Open navigation"
         >
           <Icon icon="mingcute:menu-fill" className="w-6 h-6 text-white" />
         </button>
       )}
 
       <div
-        className="bar absolute top-0 left-0 bg-[#031A3ACC] text-white w-1/7 h-full z-20"
+        className="bar absolute left-0 top-0 z-40 h-full w-20 border-r border-white/10 bg-[#031A3A]/95 text-white shadow-2xl backdrop-blur"
         style={{
           transform: isBarVisible ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 0.3s ease",

@@ -1,0 +1,15 @@
+{
+  "name": "parking-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend start",
+    "cache:parkings": "npm --prefix backend run cache:parkings --",
+    "lint": "npm --prefix frontend run lint",
+    "test": "npm --prefix backend test",
+    "build": "npm --prefix frontend run build",
+    "audit": "npm --prefix backend audit --omit=dev && npm --prefix frontend audit --omit=dev"
+  }
+}

@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import GoogleAuth from './GoogleAuth';
 import { useNavigate } from 'react-router-dom'; 
+import { apiRequest, setAuthToken } from '../../config/apiClient.js';
 
-const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
-
-function RegistrationForm({ onSwitchToLogin, setIsLoggedIn }) {
+function RegistrationForm({ onSwitchToLogin, setIsLoggedIn, isGoogleEnabled }) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     firstName: '',
@@ -17,6 +16,7 @@ function RegistrationForm({ onSwitchToLogin, setIsLoggedIn }) {
   const [errors, setErrors] = useState({
     email: '',
     password: '',
+    form: '',
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -75,29 +75,17 @@ function RegistrationForm({ onSwitchToLogin, setIsLoggedIn }) {
     };
 
     try {
-      const response = await fetch(`${API_URL}/auth/signin`, {
+      const data = await apiRequest('/auth/signin', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(registrationData),
+        auth: false,
+        body: registrationData,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Registration successful:', data);
-
-        localStorage.setItem('token', data.token);
-        setIsLoggedIn(true);
-        navigate('/map');
-      } else {
-        const errorData = await response.json();
-        console.error('Registration failed:', errorData);
-        alert('Registration failed: ' + errorData.message || 'Unknown error');
-      }
+      setAuthToken(data.token);
+      setIsLoggedIn(true);
+      navigate('/map');
     } catch (error) {
-      console.error('Error during registration:', error);
-      alert('There was an error with your request.');
+      setErrors((prev) => ({ ...prev, form: error.message }));
     }
   };
 
@@ -190,10 +178,15 @@ function RegistrationForm({ onSwitchToLogin, setIsLoggedIn }) {
         >
           Create account
         </button>
-        <p className="text-center text-sm text-gray-400">Or register with</p>
-        <div className="flex justify-center">
-          <GoogleAuth setIsLoggedIn = {setIsLoggedIn} />
-        </div>
+        {errors.form && <p className="text-red-500 text-center">{errors.form}</p>}
+        {isGoogleEnabled && (
+          <>
+            <p className="text-center text-sm text-gray-400">Or register with</p>
+            <div className="flex justify-center">
+              <GoogleAuth setIsLoggedIn={setIsLoggedIn} text="signup_with" />
+            </div>
+          </>
+        )}
       </form>
     </div>
   );

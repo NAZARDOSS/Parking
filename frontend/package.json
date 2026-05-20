@@ -6,55 +6,37 @@
     "@emotion/react": "^11.13.5",
     "@emotion/styled": "^11.13.5",
     "@iconify/react": "^5.0.2",
-    "@iconify/tailwind": "^1.1.3",
-    "@mapbox/mapbox-gl-draw": "^1.5.0",
-    "@mapbox/mapbox-gl-geocoder": "^5.0.3",
-    "@mapbox/search-js-react": "^1.0.0-beta.24",
     "@mui/icons-material": "^6.1.8",
     "@mui/material": "^6.1.8",
-    "@nextui-org/react": "^2.4.8",
     "@react-oauth/google": "^0.12.1",
     "@reduxjs/toolkit": "^2.5.0",
-    "@tailwindcss/forms": "^0.5.9",
     "@turf/turf": "^7.1.0",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^22.10.1",
-    "@types/react": "^18.3.13",
-    "@types/react-dom": "^18.3.1",
-    "jquery": "^3.7.1",
     "mapbox-gl": "^3.8.0",
     "react": "^18.3.1",
-    "react-datepicker": "^7.5.0",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.4.1",
     "react-redux": "^9.2.0",
-    "react-router-dom": "^7.1.1",
-    "react-scripts": "5.0.1",
-    "react-time-picker": "^7.0.0",
+    "react-router-dom": "^7.9.6",
     "react-toastify": "^11.0.2",
-    "redux": "^5.0.1",
-    "rxjs": "^7.8.1",
-    "semantic-ui-css": "^2.5.0",
-    "web-vitals": "^2.1.4"
+    "redux": "^5.0.1"
   },
   "lint-staged": {
-    "*.{js,ts,tsx}": [
-      "eslint --fix",
+    "*.{js,jsx}": [
+      "node ./node_modules/eslint/bin/eslint.js --fix",
+      "prettier --write"
+    ],
+    "*.{ts,tsx,css,json,md}": [
       "prettier --write"
     ]
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
+    "start": "vite --host 0.0.0.0 --port 3000",
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "lint": "node ./node_modules/eslint/bin/eslint.js \"src/**/*.{js,jsx}\"",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "echo \"No frontend tests configured\"",
     "prepare": "test \"$NODE_ENV\" = development && husky install || exit 0"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
   },
   "browserslist": {
     "production": [
@@ -69,17 +51,17 @@
     ]
   },
   "devDependencies": {
-    "@babel/eslint-parser": "^7.25.9",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.1.0",
-    "@typescript-eslint/parser": "^5.62.0",
+    "@iconify/tailwind": "^1.1.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.22",
     "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.5",
     "husky": "^8.0.0",
-    "jest": "^27.5.1",
     "lint-staged": "^15.2.11",
+    "postcss": "^8.5.6",
     "prettier": "^3.4.2",
     "tailwindcss": "^3.4.15",
     "typescript": "^4.9.5",
-    "unplugin-icons": "^0.20.1"
+    "vite": "^8.0.10"
   }
 }

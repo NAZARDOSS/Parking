@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import * as turf from "@turf/turf";
 import { drawEVMarkers } from "../lib/MapHelper.ts";
@@ -6,7 +6,7 @@ import { fetchEVChargers } from "../lib/Requests.ts";
 import { toast } from "react-hot-toast";
 import { setEvData } from "../Store/store.js";
 
-const EvCircle = ({ map }) => {
+const EvCircle = ({ map, onPlaceSelect }) => {
   const evData = useSelector((state) => state.chargers.evData, shallowEqual);
   const evFilters = useSelector(
     (state) => state.filters.evFilters,
@@ -14,17 +14,13 @@ const EvCircle = ({ map }) => {
   );
   const dispatch = useDispatch();
 
-  const token =
-    "eyJhbGciOiJSUzUxMiIsImN0eSI6IkpXVCIsImlzcyI6IkhFUkUiLCJhaWQiOiJGZE5kOXpEN1ZBck52anhGOUNnUiIsImlhdCI6MTczNzcxNDg0NiwiZXhwIjoxNzM3ODAxMjQ2LCJraWQiOiJqMSJ9.ZXlKaGJHY2lPaUprYVhJaUxDSmxibU1pT2lKQk1qVTJRMEpETFVoVE5URXlJbjAuLmRPM2Q1NmczYUVPaVVBNlFlSThFcWcuSExTc1otd05sUEJzcFFBTndEQVBVcjRGMUtHRUZQRGZaVnVZdVN1Q05EOFpNeFVia1dacEFtVjZEeXZrYXZ6dktVOFdyV1g3cnJZZ1M5NHJuY1pxb0xGYV80bm5zM2d2UnVLcGE0bmVDbHQ1UHIxZGJwdkJOR1JuOFJSSHo0N1pmUDVxbFF3THRHRnZfUnZvclhTVkhfOFl4LXNBaDNROXV5eldyRXV1U040LkprR0VPb1JCMmRZSTJMWjE4ejZncnl6YUd0NDVTWWZmczRSNEVKSEU2SEk.XitRG_M4aJPwr0QUsvbS49fPsrO2QonzGXz0IK7Uhev7csakK9XkvNljE3abLwGZVfwKeQEFRVIPbNtEGeNLWznwY8dlEm0WynogK_Hnn4jNEdq5Xvrlh3-cBAzq2PJ-6px-RqamFP5CxbXVrtaIxfAEfu-I6MjiLRWoGEHs9UBTsjqKeeYQI5_oaBrte6THfG0c2ee_w8VxQNRLDqF9IRxEISldhTyNK7ndAu86C1HO42QMA3CShL-m-bw1OErRg-9Nm1c_BXyNYiA9YAV5RLzBnAsv-2fhyzWwyLsQrpZcJyDz2GBBWbEd-59b7yZvaXp1bkpsnPcLIo-7MgMZdg";
-
   let radius;
 
   useEffect(() => {
     if (map && evFilters && evData) {
-      console.log("Обновление маркеров EV");
-      drawEVMarkers(map, evData, map.getZoom(), evFilters);
+      drawEVMarkers(map, evData, map.getZoom(), evFilters, onPlaceSelect);
     }
-  }, [map, evFilters, evData]);
+  }, [map, evFilters, evData, onPlaceSelect]);
 
   useEffect(() => {
     if (!map) return;
@@ -40,35 +36,25 @@ const EvCircle = ({ map }) => {
 
     const loadEVChargersData = async (circleCenter, radius) => {
       try {
-        const bounds = turf.bbox(
-          turf.circle([circleCenter.lng, circleCenter.lat], radius, {
-            units: "meters",
-          })
-        );
-
         const fetchedEVData = await fetchEVChargers(
-          token,
           `${circleCenter.lat},${circleCenter.lng}`,
           radius
         );
 
         if (JSON.stringify(fetchedEVData) !== JSON.stringify(evData)) {
-          console.log("Оновлення зар станцій");
           dispatch(setEvData(fetchedEVData));
         }
 
-        drawEVMarkers(map, fetchedEVData, map.getZoom(), evFilters);
+        drawEVMarkers(map, fetchedEVData, map.getZoom(), evFilters, onPlaceSelect);
         toast.success("Данні зарядних станцій успішно завантажені!");
       } catch (error) {
         toast.error("Помилка при завантаженні зарядних станцій");
-        console.error(error);
       }
     };
 
     const handleZoomEnd = () => {
-      console.log("EV Filters на изменении масштаба: ", evFilters);
       const zoomLevel = map.getZoom();
-      drawEVMarkers(map, evData, zoomLevel, evFilters);
+      drawEVMarkers(map, evData, zoomLevel, evFilters, onPlaceSelect);
     };
 
     const handleDoubleClick = async (e) => {
@@ -132,7 +118,7 @@ const EvCircle = ({ map }) => {
         map.removeSource("circle-source");
       }
     };
-  }, [map, evData, evFilters, dispatch]);
+  }, [map, evData, evFilters, dispatch, onPlaceSelect]);
 
   return null;
 };

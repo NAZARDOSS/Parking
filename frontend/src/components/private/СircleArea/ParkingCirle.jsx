@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import * as turf from "@turf/turf";
 import { drawParkingMarkers } from "../lib/MapHelper.ts";
@@ -6,7 +6,7 @@ import { fetchParkingData } from "../lib/Requests.ts";
 import { toast } from "react-hot-toast";
 import { setParkingData } from "../Store/store.js";
 
-const ParkingCircle = ({ map }) => {
+const ParkingCircle = ({ map, onPlaceSelect }) => {
   const parkingData = useSelector(
     (state) => state.parkings.parkingData,
     shallowEqual
@@ -18,16 +18,10 @@ const ParkingCircle = ({ map }) => {
   let radius;
 
   useEffect(() => {
-    console.log("parkingFilters changed:", parkingFilters);
-  }, [parkingFilters]);
-
-  useEffect(() => {
-    console.log('parkingData parkingFilters map');
-    
     if (map && parkingFilters && parkingData) {
-      drawParkingMarkers(map, parkingData, map.getZoom(), parkingFilters);
+      drawParkingMarkers(map, parkingData, map.getZoom(), parkingFilters, onPlaceSelect);
     }
-  }, [map, parkingFilters, parkingData]);
+  }, [map, parkingFilters, parkingData, onPlaceSelect]);
 
   useEffect(() => {
     if (!map) return;
@@ -50,7 +44,6 @@ const ParkingCircle = ({ map }) => {
         );
 
         const fetchedParkingData = await fetchParkingData(
-          "b8568cb9afc64fad861a69edbddb2658",
           { lng: bounds[2], lat: bounds[3] },
           { lng: bounds[0], lat: bounds[1] },
           radius
@@ -62,24 +55,22 @@ const ParkingCircle = ({ map }) => {
           dispatch(setParkingData(fetchedParkingData));
         }
 
-        console.log("parkingFilters:::: ", parkingFilters);
-
         drawParkingMarkers(
           map,
           fetchedParkingData,
           map.getZoom(),
-          parkingFilters
+          parkingFilters,
+          onPlaceSelect
         );
         toast.success("Данні парковок успішно завантажені!");
       } catch (error) {
         toast.error("Помилка завантаження даних парковок!");
-        console.error(error);
       }
     };
 
     const handleZoomEnd = () => {
       const zoomLevel = map.getZoom();
-      drawParkingMarkers(map, parkingData, zoomLevel, parkingFilters);
+      drawParkingMarkers(map, parkingData, zoomLevel, parkingFilters, onPlaceSelect);
     };
 
     const handleDoubleClick = async (e) => {
@@ -142,7 +133,7 @@ const ParkingCircle = ({ map }) => {
         map.removeSource("circle-source");
       }
     };
-  }, [map, parkingData, dispatch, parkingFilters]);
+  }, [map, parkingData, dispatch, parkingFilters, onPlaceSelect]);
 
   return null;
 };

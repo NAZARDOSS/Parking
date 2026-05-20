@@ -1,76 +1,83 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate,} from 'react-router-dom';
-import Map from './components/private/Map';
+import { Suspense, lazy, useState, useEffect } from 'react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import MainPage from './components/public/MainPage';
+import ResetPasswordPage from './components/public/ResetPasswordPage';
+import { apiRequest, getAuthToken } from './config/apiClient.js';
+import { GOOGLE_CLIENT_ID } from './config/env.js';
 import './App.css';
 
-const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
+const Map = lazy(() => import('./components/private/Map.jsx'));
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    console.log('token: ', token);
+    const verifyToken = async () => {
+      const token = getAuthToken();
 
-    if (token) {
-      fetch(`${API_URL}/auth/user-info`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-        .then((response) => {
-          console.log('response userInfo: ', response);
+      if (!token) {
+        setIsLoggedIn(false);
+        setAuthChecked(true);
+        return;
+      }
 
-          if (response.ok) {
-            setIsLoggedIn(true);
-          } else {
-            setIsLoggedIn(false);
-          }
-        })
-        .catch((error) => {
-          console.error('Error:', error);
-          setIsLoggedIn(false);
-        });
-    }
-  }, []);
-
-  // Кнопка с логикой авторизации и перехода
-  const LoginButton = () => {
-    const navigate = useNavigate();
-
-    const handleLogin = () => {
-      setIsLoggedIn(true);
-      navigate('/map');
+      try {
+        await apiRequest('/auth/user-info');
+        setIsLoggedIn(true);
+      } catch (error) {
+        setIsLoggedIn(false);
+      } finally {
+        setAuthChecked(true);
+      }
     };
 
+    verifyToken();
+  }, []);
+
+  if (!authChecked) {
     return (
-      <button onClick={handleLogin} style={{ position: 'fixed', top: 10, right: 10, color: 'white' }}>
-        Without Registration
-      </button>
+      <div className="flex h-screen items-center justify-center bg-gray-950 text-white">
+        Loading...
+      </div>
     );
-  };
+  }
+
+  const routes = (
+    <Routes>
+      <Route
+        path="/"
+        element={<MainPage isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />}
+      />
+      <Route
+        path="/map"
+        element={
+          isLoggedIn ? (
+            <Suspense fallback={<div className="flex h-screen items-center justify-center bg-gray-950 text-white">Loading...</div>}>
+              <Map setIsLoggedIn={setIsLoggedIn} />
+            </Suspense>
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={<ResetPasswordPage setIsLoggedIn={setIsLoggedIn} />}
+      />
+    </Routes>
+  );
 
   return (
     <Router>
-      <LoginButton />
-      <Routes>
-        <Route
-          path="/"
-          element={<MainPage isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />}
-        />
-        <Route
-          path="/map"
-          element={
-            isLoggedIn ? (
-              <Map setIsLoggedIn={setIsLoggedIn} />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          }
-        />
-      </Routes>
+      {GOOGLE_CLIENT_ID ? (
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+          {routes}
+        </GoogleOAuthProvider>
+      ) : (
+        routes
+      )}
     </Router>
   );
 }

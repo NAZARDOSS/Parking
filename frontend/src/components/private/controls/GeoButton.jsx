@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import { Icon } from "@iconify/react";
 import MapDialog from "../MapDialog";
 
 const GeoButton = ({ map, isFollowing, setIsFollowing }) => {
-  const [marker, setMarker] = useState(null);
+  const markerRef = useRef(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,25 +18,19 @@ const GeoButton = ({ map, isFollowing, setIsFollowing }) => {
       essential: true,
     });
 
-    if (!marker) {
+    if (!markerRef.current) {
       const customMarker = document.createElement("div");
-      customMarker.className = "custom-marker";
-      customMarker.style.backgroundImage = `url('/path/to/marker-icon.svg')`;
-      customMarker.style.width = "50px";
-      customMarker.style.height = "50px";
-      customMarker.style.backgroundSize = "cover";
+      customMarker.className = "h-5 w-5 rounded-full border-2 border-white bg-blue-500 shadow-lg";
 
-      const newMarker = new mapboxgl.Marker(customMarker)
+      markerRef.current = new mapboxgl.Marker(customMarker)
         .setLngLat([longitude, latitude])
         .addTo(map);
-
-      setMarker(newMarker);
     } else {
-      marker.setLngLat([longitude, latitude]);
+      markerRef.current.setLngLat([longitude, latitude]);
     }
 
     if (heading !== null) {
-      marker.getElement().style.transform = `rotate(${heading}deg)`;
+      markerRef.current.getElement().style.transform = `rotate(${heading}deg)`;
     }
   };
 
@@ -57,8 +51,6 @@ const GeoButton = ({ map, isFollowing, setIsFollowing }) => {
           setIsLoading(false);
           if (error.code === error.PERMISSION_DENIED) {
             setIsOpen(true);
-          } else {
-            console.error("Error fetching geolocation:", error);
           }
         },
         { enableHighAccuracy: true }
@@ -77,9 +69,7 @@ const GeoButton = ({ map, isFollowing, setIsFollowing }) => {
         setUserLocation({ lat: latitude, lng: longitude });
         updateLocationOnMap(latitude, longitude, heading);
       },
-      (error) => {
-        console.error("Error watching geolocation:", error);
-      },
+      () => {},
       { enableHighAccuracy: true }
     );
 
@@ -94,15 +84,12 @@ const GeoButton = ({ map, isFollowing, setIsFollowing }) => {
     <div>
       <button
         onClick={handleGeolocate}
-        className="flex items-center justify-center absolute bottom-10 right-10 z-5 bg-blue-950 opacity-90 text-white p-0 rounded-full hover:bg-blue-800 shadow-blurred-3xl"
+        className="absolute bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-blue-300/30 bg-blue-950/95 p-0 text-white shadow-2xl backdrop-blur hover:bg-blue-800"
         title="Go to my location"
-        style={{ width: "80px", height: "80px" }}
+        aria-label="Go to my location"
       >
-        <span className="absolute icon-park-twotone--aiming w-full h-full text-white cursor-pointer"></span>
-        <Icon icon="tabler:navigation-filled" className="absolute w-6 h-6 text-white" />
+        <Icon icon={isLoading ? "mdi:loading" : "tabler:navigation-filled"} className={`h-6 w-6 text-white ${isLoading ? "animate-spin" : ""}`} />
       </button>
-
-      {isLoading && <div className="loading-indicator">Loading...</div>}
 
       <MapDialog 
         key={isOpen ? "open" : "closed"} 

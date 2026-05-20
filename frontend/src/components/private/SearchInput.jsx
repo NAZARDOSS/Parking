@@ -1,235 +1,993 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { shallowEqual, useDispatch, useSelector } from "react-redux";
+import { Icon } from "@iconify/react";
 import mapboxgl from "mapbox-gl";
-import "../../styles/searchInput.css";
-import RouteSelectionForm from "./RouteSelectionForm.jsx";
+import { apiRequest } from "../../config/apiClient.js";
+import { setParkingFilters } from "./Store/store.js";
+import {
+  countActiveFilters,
+  getActiveParkingFilterLabels,
+  parkingFilterGroups,
+} from "./lib/filterConfig.js";
 
-const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
-const SearchInput = ({ map, placeholder = "Search", apiKey, onResultSelect, userLocation }) => {
-  const [startPointQuery, setStartPointQuery] = useState("");
-  const [finishPointQuery, setFinishPointQuery] = useState("");
-  const [startPointSuggestions, setStartPointSuggestions] = useState([]);
-  const [finishPointSuggestions, setFinishPointSuggestions] = useState([]);
-  const [selectedStartPointIndex, setSelectedStartPointIndex] = useState(-1);
-  const [selectedFinishPointIndex, setSelectedFinishPointIndex] = useState(-1);
-  const [showStartPointSuggestions, setShowStartPointSuggestions] = useState(false);
-  const [showFinishPointSuggestions, setShowFinishPointSuggestions] = useState(false);
-  const [sessionToken, setSessionToken] = useState("");
-  const [startPoint, setStartPoint] = useState(null);
-  const [finishPoint, setFinishPoint] = useState(null);
-  const [startPointMarker, setStartPointMarker] = useState(null);
-  const [finishPointMarker, setFinishPointMarker] = useState(null);
-  const [isFinishPointSelected, setIsFinishPointSelected] = useState(false);
+const travelModes = [
+  { id: "driving", label: "Drive", icon: "mdi:car", description: "Fastest road route" },
+  { id: "walking", label: "Walk", icon: "mdi:walk", description: "Pedestrian route" },
+  { id: "cycling", label: "Bike", icon: "mdi:bike", description: "Cycling route" },
+];
 
-  const searchInputRef = useRef(null);
+const formatDuration = (seconds = 0) => {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
+};
+
+const formatDistance = (meters = 0) => {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+};
+
+const formatScore = (score = 0) => `${Math.round(score * 100)}%`;
+
+const formatCoordinateLabel = (point) =>
+  `${point[1].toFixed(5)}, ${point[0].toFixed(5)}`;
+
+const availabilityTone = (prediction) =>
+  ({
+    green: {
+      border: "border-emerald-300/40",
+      badge: "bg-emerald-400 text-emerald-950",
+      text: "text-emerald-200",
+    },
+    yellow: {
+      border: "border-amber-300/40",
+      badge: "bg-amber-400 text-blue-950",
+      text: "text-amber-200",
+    },
+    red: {
+      border: "border-red-300/40",
+      badge: "bg-red-400 text-red-950",
+      text: "text-red-200",
+    },
+  }[prediction?.color] || {
+    border: "border-white/10",
+    badge: "bg-amber-400 text-blue-950",
+    text: "text-slate-300",
+  });
+
+const routeFilterInputClass =
+  "min-w-0 rounded-md border border-white/10 bg-white/10 px-2 py-2 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-blue-300";
+
+const suggestionTitle = (suggestion) =>
+  suggestion?.name || suggestion?.name_preferred || suggestion?.text || "Unknown place";
+
+const suggestionSubtitle = (suggestion) =>
+  suggestion?.place_formatted ||
+  suggestion?.full_address ||
+  suggestion?.address ||
+  suggestion?.context?.place?.name ||
+  "No additional information";
+
+const fieldConfig = {
+  start: {
+    label: "Start",
+    placeholder: "Choose starting point",
+    icon: "mdi:map-marker-radius",
+  },
+  finish: {
+    label: "Destination",
+    placeholder: "Where are you going?",
+    icon: "mdi:flag-checkered",
+  },
+};
+
+const toLngLat = (latitude, longitude) => {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return [lng, lat];
+};
+
+const routeKey = (route) => [
+  Number(route.start_latitude).toFixed(4),
+  Number(route.start_longitude).toFixed(4),
+  Number(route.finish_latitude).toFixed(4),
+  Number(route.finish_longitude).toFixed(4),
+  String(route.finish_name || "").trim().toLowerCase(),
+].join("|");
+
+const getPopularRoutes = (routes = []) => {
+  const groups = new Map();
+
+  routes.forEach((route) => {
+    const startPoint = toLngLat(route.start_latitude, route.start_longitude);
+    const finishPoint = toLngLat(route.finish_latitude, route.finish_longitude);
+    if (!startPoint || !finishPoint) return;
+
+    const key = routeKey(route);
+    const current = groups.get(key);
+    const createdAt = new Date(route.created_at || 0).getTime() || 0;
+
+    if (!current) {
+      groups.set(key, {
+        ...route,
+        startPoint,
+        finishPoint,
+        count: 1,
+        lastUsedAt: createdAt,
+      });
+      return;
+    }
+
+    current.count += 1;
+    current.lastUsedAt = Math.max(current.lastUsedAt, createdAt);
+  });
+
+  return Array.from(groups.values())
+    .sort((a, b) => b.count - a.count || b.lastUsedAt - a.lastUsedAt)
+    .slice(0, 6);
+};
+
+const createDraftMarkerElement = (field) => {
+  const element = document.createElement("div");
+  const isStart = field === "start";
+  element.className = `flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-xs font-black text-white shadow-xl ${
+    isStart ? "bg-emerald-500" : "bg-blue-600"
+  }`;
+  element.textContent = isStart ? "A" : "B";
+  element.setAttribute("aria-label", isStart ? "Draft route start" : "Draft route destination");
+  return element;
+};
+
+const SearchInput = ({
+  map,
+  apiKey,
+  onResultSelect,
+  onParkingRecommendationSelect,
+  onClearRoute,
+  userLocation,
+}) => {
+  const dispatch = useDispatch();
+  const savedParkingFilters = useSelector(
+    (state) => state.filters.parkingFilters,
+    shallowEqual
+  );
+  const [queries, setQueries] = useState({ start: "", finish: "" });
+  const [points, setPoints] = useState({ start: null, finish: null });
+  const [suggestions, setSuggestions] = useState({ start: [], finish: [] });
+  const [focusedField, setFocusedField] = useState(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState({ start: false, finish: false });
+  const [travelMode, setTravelMode] = useState("driving");
+  const [route, setRoute] = useState(null);
+  const [parkingRecommendations, setParkingRecommendations] = useState([]);
+  const [routeError, setRouteError] = useState("");
+  const [isBuildingRoute, setIsBuildingRoute] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isParkingFiltersOpen, setIsParkingFiltersOpen] = useState(false);
+  const [popularRoutes, setPopularRoutes] = useState([]);
+  const [pickMode, setPickMode] = useState(null);
+  const [routeParkingFilters, setRouteParkingFilters] = useState(savedParkingFilters);
+  const sessionTokenRef = useRef(Math.random().toString(36).slice(2));
+  const containerRef = useRef(null);
+  const draftMarkersRef = useRef({ start: null, finish: null });
+  const mapPickCleanupRef = useRef(null);
+  const activeFilterCount = countActiveFilters(routeParkingFilters);
+  const activeFilterLabels = getActiveParkingFilterLabels(routeParkingFilters);
+
+  const clearMapPicker = useCallback(() => {
+    mapPickCleanupRef.current?.();
+    mapPickCleanupRef.current = null;
+    setPickMode(null);
+  }, []);
+
+  const removeDraftMarker = useCallback((field) => {
+    draftMarkersRef.current[field]?.remove();
+    draftMarkersRef.current[field] = null;
+  }, []);
+
+  const clearDraftMarkers = useCallback(() => {
+    removeDraftMarker("start");
+    removeDraftMarker("finish");
+  }, [removeDraftMarker]);
+
+  const updateDraftMarker = useCallback(
+    (field, point) => {
+      if (!map || !point) return;
+
+      removeDraftMarker(field);
+      draftMarkersRef.current[field] = new mapboxgl.Marker({
+        element: createDraftMarkerElement(field),
+        anchor: "bottom",
+      })
+        .setLngLat(point)
+        .addTo(map);
+    },
+    [map, removeDraftMarker]
+  );
 
   useEffect(() => {
-    setSessionToken(Math.random().toString(36).substring(2, 15));
+    setRouteParkingFilters(savedParkingFilters);
+  }, [savedParkingFilters]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    apiRequest("/requests/getRoutes")
+      .then((routes) => {
+        if (isMounted) {
+          setPopularRoutes(getPopularRoutes(Array.isArray(routes) ? routes : []));
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setPopularRoutes([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
-      if (searchInputRef.current && !searchInputRef.current.contains(event.target)) {
-        setShowFinishPointSuggestions(false);
-        setShowStartPointSuggestions(false);
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setFocusedField(null);
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const saveRouteInfo = async (startPointCoordinates, finishPointCoordinates, finishPointQuery) => {
-    try {
-      const response = await fetch(`${API_URL}/requests/routeInfo`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          startLatitude: startPointCoordinates[1],
-          startLongitude: startPointCoordinates[0],
-          finishLatitude: finishPointCoordinates[1],
-          finishLongitude: finishPointCoordinates[0],
-          finishName: finishPointQuery,
-        }),
-      });
-  
-      const data = await response.json();
-      console.log('Response:', data);
-    } catch (error) {
-      console.error('Error saving route info:', error);
-    }
-  };
+  useEffect(() => () => {
+    clearMapPicker();
+    clearDraftMarkers();
+  }, [clearDraftMarkers, clearMapPicker]);
 
-
-  const fetchSuggestions = async (query) => {
-    if (!query) return [];
-    try {
-      const response = await fetch(
-        `https://api.mapbox.com/search/searchbox/v1/suggest?q=${encodeURIComponent(
-          query
-        )}&session_token=${sessionToken}&access_token=${apiKey}`
-      );
-      const data = await response.json();
-      return data.suggestions || [];
-    } catch (error) {
-      console.error("Error fetching suggestions:", error);
-      return [];
-    }
-  };
-
-  useEffect(() => {
-    if (startPointQuery.length > 2) {
-      fetchSuggestions(startPointQuery).then(setStartPointSuggestions);
-    } else {
-      setStartPointSuggestions([]);
-    }
-  }, [startPointQuery]);
-
-  useEffect(() => {
-    if (finishPointQuery.length > 2) {
-      fetchSuggestions(finishPointQuery).then(setFinishPointSuggestions);
-    } else {
-      setFinishPointSuggestions([]);
-    }
-  }, [finishPointQuery]);
-
-  const handleGeolocationClick = async (type) => {
-    if (userLocation) {
-      const { lat, lng } = userLocation;
-      const geoPoint = [lng, lat];
-
-      map.flyTo({ center: geoPoint, zoom: 14 });
-      await selectPointSuggestion(-1, type, geoPoint);
-    }
-  };
-
-  const handleFinishPointChange = (event) => {
-    setFinishPointQuery(event.target.value);
-    setShowFinishPointSuggestions(true);
-  };
-
-  const handleStartPointChange = (event) => {
-    setStartPointQuery(event.target.value);
-    setShowStartPointSuggestions(true);
-  };
-
-  const selectPointSuggestion = async (index, type, geoPoint = null) => {
-    let point;
-  
-    if (geoPoint) {
-      point = geoPoint;
-    } else {
-      const suggestions = type === "start" ? startPointSuggestions : finishPointSuggestions;
-      const suggestion = suggestions[index];
-      const response = await fetch(
-        `https://api.mapbox.com/search/searchbox/v1/retrieve/${suggestion.mapbox_id}?session_token=${sessionToken}&access_token=${apiKey}`
-      );
-      const data = await response.json();
-      if (data?.features?.[0]?.geometry?.coordinates) {
-        point = data.features[0].geometry.coordinates;
-      } else {
+  const fetchSuggestions = useCallback(
+    async (query, field) => {
+      const trimmedQuery = query.trim();
+      if (trimmedQuery.length < 2 || !apiKey) {
+        setSuggestions((current) => ({ ...current, [field]: [] }));
         return;
       }
+
+      setLoadingSuggestions((current) => ({ ...current, [field]: true }));
+
+      try {
+        const url = new URL("https://api.mapbox.com/search/searchbox/v1/suggest");
+        url.searchParams.set("q", trimmedQuery);
+        url.searchParams.set("access_token", apiKey);
+        url.searchParams.set("session_token", sessionTokenRef.current);
+        url.searchParams.set("limit", "6");
+        url.searchParams.set("types", "poi,address,place,street");
+
+        if (userLocation) {
+          url.searchParams.set("proximity", `${userLocation.lng},${userLocation.lat}`);
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+        setSuggestions((current) => ({ ...current, [field]: data.suggestions || [] }));
+      } catch (error) {
+        setSuggestions((current) => ({ ...current, [field]: [] }));
+      } finally {
+        setLoadingSuggestions((current) => ({ ...current, [field]: false }));
+      }
+    },
+    [apiKey, userLocation]
+  );
+
+  useEffect(() => {
+    const timeout = setTimeout(() => fetchSuggestions(queries.start, "start"), 250);
+    return () => clearTimeout(timeout);
+  }, [queries.start, fetchSuggestions]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => fetchSuggestions(queries.finish, "finish"), 250);
+    return () => clearTimeout(timeout);
+  }, [queries.finish, fetchSuggestions]);
+
+  const setFieldValue = (field, value) => {
+    setQueries((current) => ({ ...current, [field]: value }));
+    setPoints((current) => ({ ...current, [field]: null }));
+    removeDraftMarker(field);
+    setRoute(null);
+    setParkingRecommendations([]);
+    setRouteError("");
+  };
+
+  const setPickedPoint = useCallback(
+    (field, point, label) => {
+      setQueries((current) => ({ ...current, [field]: label }));
+      setPoints((current) => ({ ...current, [field]: point }));
+      setSuggestions((current) => ({ ...current, [field]: [] }));
+      setFocusedField(null);
+      setRoute(null);
+      setParkingRecommendations([]);
+      setRouteError("");
+      updateDraftMarker(field, point);
+    },
+    [updateDraftMarker]
+  );
+
+  const selectCurrentLocation = (field) => {
+    if (!userLocation) {
+      setRouteError("Current location is not available yet.");
+      return;
     }
-  
-    if (type === "start") {
-      setStartPointQuery(geoPoint ? "My Geolocation" : startPointSuggestions[index]?.name || "Unknown place");
-      setStartPoint(point);
-      setShowStartPointSuggestions(false);
-    } else {
-      setFinishPointQuery(finishPointSuggestions[index]?.name || "Unknown place");
-      setFinishPoint(point);
-      setIsFinishPointSelected(true);
-      setShowFinishPointSuggestions(false);
+
+    const point = [userLocation.lng, userLocation.lat];
+    setPickedPoint(field, point, "Current location");
+    map?.flyTo({ center: point, zoom: 14, essential: true });
+  };
+
+  const startMapPick = useCallback(
+    (field) => {
+      if (!map) {
+        setRouteError("Map is not ready yet.");
+        return;
+      }
+
+      clearMapPicker();
+      setPickMode(field);
+      setFocusedField(null);
+      setRouteError(`Click on the map to set ${fieldConfig[field].label.toLowerCase()}.`);
+
+      const canvas = map.getCanvas();
+      const previousCursor = canvas.style.cursor;
+      canvas.style.cursor = "crosshair";
+
+      const handleClick = (event) => {
+        const point = [event.lngLat.lng, event.lngLat.lat];
+        setPickedPoint(
+          field,
+          point,
+          field === "start" ? `Pinned start (${formatCoordinateLabel(point)})` : `Pinned destination (${formatCoordinateLabel(point)})`
+        );
+        map.flyTo({ center: point, zoom: Math.max(map.getZoom(), 15), essential: true });
+        clearMapPicker();
+      };
+
+      map.once("click", handleClick);
+      mapPickCleanupRef.current = () => {
+        map.off("click", handleClick);
+        canvas.style.cursor = previousCursor;
+      };
+    },
+    [clearMapPicker, map, setPickedPoint]
+  );
+
+  const selectSuggestion = async (field, suggestion) => {
+    if (!suggestion?.mapbox_id) return;
+
+    try {
+      const url = new URL(`https://api.mapbox.com/search/searchbox/v1/retrieve/${suggestion.mapbox_id}`);
+      url.searchParams.set("access_token", apiKey);
+      url.searchParams.set("session_token", sessionTokenRef.current);
+
+      const response = await fetch(url);
+      const data = await response.json();
+      const coordinates = data?.features?.[0]?.geometry?.coordinates;
+
+      if (!coordinates) return;
+
+      setPickedPoint(field, coordinates, suggestionTitle(suggestion));
+      map?.flyTo({ center: coordinates, zoom: 14, essential: true });
+    } catch (error) {
+      setRouteError("Could not select this place.");
     }
   };
 
-  const handleSubmit = () => {
-    console.log('startPoint: ', startPoint, "finishPoint", finishPoint);
-    
-    if (startPoint || finishPoint) {
-      if (startPoint) {
-        if (startPointMarker) {
-          startPointMarker.remove();
-        }
-        const marker = new mapboxgl.Marker().setLngLat(startPoint).addTo(map);
-        setStartPointMarker(marker);
-        map.flyTo({ center: startPoint, zoom: 14 });
-      }
-      if (finishPoint) {
-        if (finishPointMarker) {
-          finishPointMarker.remove();
-        }
-        const marker = new mapboxgl.Marker().setLngLat(finishPoint).addTo(map);
-        setFinishPointMarker(marker);
-        map.flyTo({ center: finishPoint, zoom: 14 });
-      }
-    }
+  const selectPopularRoute = (route) => {
+    setQueries({
+      start: `History start (${formatCoordinateLabel(route.startPoint)})`,
+      finish: route.finish_name || "Saved destination",
+    });
+    setPoints({
+      start: route.startPoint,
+      finish: route.finishPoint,
+    });
+    setSuggestions({ start: [], finish: [] });
+    setFocusedField(null);
+    setRoute(null);
+    setParkingRecommendations([]);
+    setRouteError("");
+    updateDraftMarker("start", route.startPoint);
+    updateDraftMarker("finish", route.finishPoint);
+    map?.flyTo({ center: route.finishPoint, zoom: 14, essential: true });
+  };
 
-    if (startPoint && finishPoint && onResultSelect) {
-      onResultSelect({ startPoint, finishPoint });
+  const swapPoints = () => {
+    setQueries((current) => ({ start: current.finish, finish: current.start }));
+    setPoints((current) => ({ start: current.finish, finish: current.start }));
+    if (points.finish) updateDraftMarker("start", points.finish);
+    else removeDraftMarker("start");
+    if (points.start) updateDraftMarker("finish", points.start);
+    else removeDraftMarker("finish");
+    setRoute(null);
+    setParkingRecommendations([]);
+    setRouteError("");
+  };
+
+  const saveRoute = async () => {
+    if (!points.start || !points.finish) return;
+
+    setIsSaving(true);
+    try {
+      await apiRequest("/requests/routeInfo", {
+        method: "POST",
+        body: {
+          startLatitude: points.start[1],
+          startLongitude: points.start[0],
+          finishLatitude: points.finish[1],
+          finishLongitude: points.finish[0],
+          finishName: queries.finish || "Destination",
+        },
+      });
+    } catch (error) {
+      setRouteError(error.message || "Route was built but could not be saved.");
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const buildRoute = async () => {
+    if (!points.start || !points.finish || isBuildingRoute) return;
+
+    setIsBuildingRoute(true);
+    setRouteError("");
+    dispatch(setParkingFilters(routeParkingFilters));
+
+    try {
+      const nextRoute = await onResultSelect?.({
+        startPoint: points.start,
+        finishPoint: points.finish,
+        travelMode,
+        parkingFilters: routeParkingFilters,
+      });
+
+      if (nextRoute) {
+        setRoute(nextRoute);
+        setParkingRecommendations(nextRoute.parkingRecommendations || []);
+        clearDraftMarkers();
+        await saveRoute();
+      }
+    } catch (error) {
+      setRouteError(error.message || "Route could not be built.");
+    } finally {
+      setIsBuildingRoute(false);
+    }
+  };
+
+  const clearRoute = () => {
+    setQueries({ start: "", finish: "" });
+    setPoints({ start: null, finish: null });
+    setSuggestions({ start: [], finish: [] });
+    setRoute(null);
+    setParkingRecommendations([]);
+    setRouteError("");
+    clearMapPicker();
+    clearDraftMarkers();
+    onClearRoute?.();
+  };
+
+  const updateRouteParkingFilter = (name, value) => {
+    setRouteParkingFilters((current) => ({
+      ...current,
+      [name]: value,
+    }));
+    setRoute(null);
+    setParkingRecommendations([]);
+    setRouteError("");
+  };
+
+  const handleRouteParkingFilterChange = (event) => {
+    const { name, type, checked, value } = event.target;
+    updateRouteParkingFilter(name, type === "checkbox" ? checked : value);
+  };
+
+  const clearRouteParkingFilters = () => {
+    setRouteParkingFilters((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([key, value]) => [
+          key,
+          typeof value === "boolean" ? false : "",
+        ])
+      )
+    );
+    setRoute(null);
+    setParkingRecommendations([]);
+    setRouteError("");
+  };
+
+  const renderRouteNumberInput = (name, label, step = "1") => (
+    <label className="flex min-w-0 flex-col gap-1 text-xs font-bold uppercase text-blue-200">
+      {label}
+      <input
+        type="number"
+        min="0"
+        step={step}
+        name={name}
+        value={routeParkingFilters[name] || ""}
+        onChange={handleRouteParkingFilterChange}
+        className={routeFilterInputClass}
+      />
+    </label>
+  );
+
+  const renderRouteFilterToggle = ([name, label]) => {
+    const isActive = Boolean(routeParkingFilters[name]);
+
+    return (
+      <button
+        key={name}
+        type="button"
+        onClick={() => updateRouteParkingFilter(name, !isActive)}
+        className={`flex min-h-9 items-center justify-between gap-2 rounded-md border px-2 py-2 text-left text-xs font-bold transition-colors ${
+          isActive
+            ? "border-blue-300 bg-blue-500 text-white"
+            : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+        }`}
+        aria-pressed={isActive}
+      >
+        <span className="min-w-0 leading-tight">{label}</span>
+        {isActive ? <Icon icon="mdi:check" className="h-4 w-4 shrink-0" /> : null}
+      </button>
+    );
+  };
+
+  const renderRouteFilterGroup = (group) => (
+    <section key={group.title} className="space-y-2 border-t border-white/10 pt-3">
+      <div className="text-xs font-bold uppercase text-slate-400">{group.title}</div>
+      <div className="grid grid-cols-2 gap-2">
+        {group.filters.map(renderRouteFilterToggle)}
+      </div>
+    </section>
+  );
+
+  const renderRouteParkingFilters = () => (
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5">
+      <button
+        type="button"
+        onClick={() => setIsParkingFiltersOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-white/5"
+        aria-expanded={isParkingFiltersOpen}
+      >
+        <span className="min-w-0">
+          <span className="block text-xs font-bold uppercase text-blue-200">
+            Parking filters
+          </span>
+          <span className="block truncate text-sm font-bold text-white">
+            {activeFilterCount ? `${activeFilterCount} active` : "Any parking"}
+          </span>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-white/10 text-blue-100">
+            <Icon icon="mdi:tune-variant" className="h-5 w-5" />
+          </span>
+          <Icon
+            icon={isParkingFiltersOpen ? "mdi:chevron-up" : "mdi:chevron-down"}
+            className="h-5 w-5 text-slate-300"
+          />
+        </span>
+      </button>
+
+      {activeFilterLabels.length ? (
+        <div className="flex gap-2 overflow-x-auto border-t border-white/10 px-3 py-2">
+          {activeFilterLabels.slice(0, 5).map((label) => (
+            <span
+              key={label}
+              className="shrink-0 rounded-full bg-blue-500/20 px-2 py-1 text-xs font-bold text-blue-100"
+            >
+              {label}
+            </span>
+          ))}
+          {activeFilterLabels.length > 5 ? (
+            <span className="shrink-0 rounded-full bg-white/10 px-2 py-1 text-xs font-bold text-slate-300">
+              +{activeFilterLabels.length - 5}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isParkingFiltersOpen ? (
+        <div className="max-h-[340px] space-y-3 overflow-y-auto border-t border-white/10 p-3">
+          {activeFilterCount ? (
+            <button
+              type="button"
+              onClick={clearRouteParkingFilters}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-white/10"
+            >
+              <Icon icon="mdi:filter-remove-outline" className="h-4 w-4" />
+              Clear filters
+            </button>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-bold uppercase text-blue-200">
+              Search
+              <input
+                type="text"
+                name="search"
+                value={routeParkingFilters.search || ""}
+                onChange={handleRouteParkingFilterChange}
+                className={routeFilterInputClass}
+              />
+            </label>
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-bold uppercase text-blue-200">
+              Operator
+              <input
+                type="text"
+                name="operator"
+                value={routeParkingFilters.operator || ""}
+                onChange={handleRouteParkingFilterChange}
+                className={routeFilterInputClass}
+              />
+            </label>
+            {renderRouteNumberInput("minCapacity", "Min capacity")}
+            {renderRouteNumberInput("maxHeightMeters", "Max height, m", "0.1")}
+          </div>
+
+          {parkingFilterGroups.map(renderRouteFilterGroup)}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const renderSuggestions = (field) => {
+    const isOpen = focusedField === field;
+    if (!isOpen) return null;
+    const popularRouteMatches = field === "finish"
+      ? popularRoutes.filter((route) =>
+          !queries.finish.trim() ||
+          String(route.finish_name || "Saved destination")
+            .toLowerCase()
+            .includes(queries.finish.trim().toLowerCase())
+        )
+      : [];
+
+    return (
+      <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-[320px] overflow-y-auto rounded-lg border border-white/10 bg-[#061f45] shadow-2xl">
+        <button
+          type="button"
+          className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm text-white hover:bg-white/10"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            selectCurrentLocation(field);
+          }}
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/20 text-blue-200">
+            <Icon icon="mdi:crosshairs-gps" className="h-5 w-5" />
+          </span>
+          <span className="font-semibold">Current location</span>
+        </button>
+
+        <button
+          type="button"
+          className="flex w-full items-center gap-3 border-t border-white/10 px-3 py-3 text-left text-sm text-white hover:bg-white/10"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            startMapPick(field);
+          }}
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-400/20 text-amber-100">
+            <Icon icon="mdi:map-marker-plus" className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-semibold">Pick on map</span>
+            <span className="block truncate text-xs text-slate-300">
+              Click any point and place a marker manually
+            </span>
+          </span>
+        </button>
+
+        {popularRouteMatches.length ? (
+          <div className="border-t border-white/10">
+            <div className="px-3 pb-1 pt-3 text-xs font-bold uppercase text-blue-200">
+              Popular routes
+            </div>
+            {popularRouteMatches.map((route) => (
+              <button
+                key={`${route.startPoint.join(",")}-${route.finishPoint.join(",")}-${route.finish_name}`}
+                type="button"
+                className="flex w-full gap-3 px-3 py-3 text-left hover:bg-white/10"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  selectPopularRoute(route);
+                }}
+              >
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-500/20 text-blue-100">
+                  <Icon icon="mdi:history" className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-white">
+                    {route.finish_name || "Saved destination"}
+                  </span>
+                  <span className="block truncate text-xs text-slate-300">
+                    Used {route.count} time{route.count === 1 ? "" : "s"} · {formatCoordinateLabel(route.finishPoint)}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {loadingSuggestions[field] ? (
+          <div className="px-3 py-3 text-sm text-slate-300">Searching...</div>
+        ) : null}
+
+        {suggestions[field].map((suggestion) => (
+          <button
+            key={suggestion.mapbox_id}
+            type="button"
+            className="flex w-full gap-3 border-t border-white/10 px-3 py-3 text-left hover:bg-white/10"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              selectSuggestion(field, suggestion);
+            }}
+          >
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/10 text-blue-200">
+              <Icon icon="mdi:map-marker" className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-bold text-white">
+                {suggestionTitle(suggestion)}
+              </span>
+              <span className="block truncate text-xs text-slate-300">
+                {suggestionSubtitle(suggestion)}
+              </span>
+            </span>
+          </button>
+        ))}
+
+        {!loadingSuggestions[field] && suggestions[field].length === 0 && queries[field].trim().length > 1 ? (
+          <div className="border-t border-white/10 px-3 py-3 text-sm text-slate-300">
+            Nothing found. Try a more specific address.
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderField = (field) => {
+    const config = fieldConfig[field];
+
+    return (
+      <div className="relative">
+        <label className="mb-1 block text-xs font-bold uppercase text-blue-200">
+          {config.label}
+        </label>
+        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white px-3 py-2 text-slate-950 shadow-sm focus-within:border-blue-400">
+          <Icon icon={config.icon} className="h-5 w-5 shrink-0 text-blue-800" />
+          <input
+            type="text"
+            value={queries[field]}
+            placeholder={config.placeholder}
+            onFocus={() => setFocusedField(field)}
+            onChange={(event) => {
+              setFocusedField(field);
+              setFieldValue(field, event.target.value);
+            }}
+            className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-slate-400"
+          />
+          {queries[field] ? (
+            <button
+              type="button"
+              onClick={() => setFieldValue(field, "")}
+              className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label={`Clear ${config.label.toLowerCase()}`}
+            >
+              <Icon icon="mdi:close" className="h-4 w-4" />
+            </button>
+          ) : null}
+          {points[field] ? <Icon icon="mdi:check-circle" className="h-5 w-5 text-emerald-500" /> : null}
+        </div>
+        {renderSuggestions(field)}
+      </div>
+    );
   };
 
   return (
-    <div ref={searchInputRef} className="search-input-container relative w-full z-5 h-fit">
-      {!isFinishPointSelected ? (
-        <div>
-          <div className="input-wrapper rounded-3xl px-4 w-full bg-white shadow-blurred-3xl">
-            <input
-              type="text"
-              value={finishPointQuery}
-              placeholder="Finish Point"
-              onFocus={() => setShowFinishPointSuggestions(true)}
-              onChange={handleFinishPointChange}
-              className="input input-bordered w-full my-1 py-1 mx-2 focus:outline-none z-6"
-            />
+    <div
+      ref={containerRef}
+      className="flex max-h-[calc(100vh-2.5rem)] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-blue-300/20 bg-[#031A3A]/95 text-white shadow-2xl backdrop-blur"
+    >
+      <div className="border-b border-white/10 px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold uppercase text-blue-200">
+              Navigation
+            </div>
+            <h2 className="text-xl font-bold leading-tight">Route planner</h2>
           </div>
-          {(showFinishPointSuggestions || finishPointSuggestions.length > 0) && (
-            <ul className="results max-h-52 max-w-48 ml-6 my-0 overflow-y-auto rounded-b-lg bg-white shadow-lg z-2">
-              <li
-                className="rounded-lg p-2 cursor-pointer hover:bg-gray-200"
-                onClick={() => handleGeolocationClick("finish")}
-              >
-              </li>
-              {finishPointSuggestions.map((suggestion, i) => (
-                <li
-                  key={i}
-                  className={`rounded-lg p-2 cursor-pointer ${
-                    i === selectedFinishPointIndex ? "bg-blue-500 text-white" : "hover:bg-gray-200"
-                  }`}
-                  onClick={() => selectPointSuggestion(i, "finish")}
-                >
-                  <strong>{suggestion.name || "Unknown place"}</strong>
-                  <br />
-                  <span className="text-sm text-gray-600">{suggestion.address || "No additional information"}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <button
+            type="button"
+            onClick={clearRoute}
+            className="flex h-9 w-9 items-center justify-center rounded-md bg-white/10 text-white hover:bg-white/20"
+            aria-label="Clear route"
+            title="Clear route"
+          >
+            <Icon icon="mdi:close" className="h-5 w-5" />
+          </button>
         </div>
-      ) : (
-        <RouteSelectionForm
-          startPointCoordinates = {startPoint}
-          finishPointCoordinates = {finishPoint}
-          apiKey={apiKey}
-          userLocation={userLocation}
-          startPointQuery={startPointQuery}
-          finishPointQuery={finishPointQuery}
-          handleStartPointChange={handleStartPointChange}
-          handleFinishPointChange={handleFinishPointChange}
-          showStartPointSuggestions={showStartPointSuggestions}
-          startPointSuggestions={startPointSuggestions}
-          setShowStartPointSuggestions = {setShowStartPointSuggestions}
-          selectPointSuggestion={selectPointSuggestion}
-          showFinishPointSuggestions={showFinishPointSuggestions}
-          finishPointSuggestions={finishPointSuggestions}
-          selectedStartPointIndex={selectedStartPointIndex}
-          selectedFinishPointIndex={selectedFinishPointIndex}
-          handleSubmit={handleSubmit}
-        />
-      )}
+      </div>
+
+      {pickMode ? (
+        <div className="border-b border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 font-semibold">
+              <Icon icon="mdi:map-marker-plus" className="h-5 w-5" />
+              Click the map to set {fieldConfig[pickMode].label.toLowerCase()}
+            </span>
+            <button
+              type="button"
+              onClick={clearMapPicker}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs font-bold hover:bg-white/20"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        {renderField("start")}
+
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={swapPoints}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 text-blue-100 hover:bg-white/20"
+            aria-label="Swap start and destination"
+          >
+            <Icon icon="mdi:swap-vertical" className="h-5 w-5" />
+          </button>
+        </div>
+
+        {renderField("finish")}
+
+        <div className="grid grid-cols-3 gap-2 rounded-lg bg-white/5 p-1">
+          {travelModes.map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              title={mode.description}
+              onClick={() => {
+                setTravelMode(mode.id);
+                setRoute(null);
+                setParkingRecommendations([]);
+              }}
+              className={`flex items-center justify-center gap-2 rounded-md px-2 py-2 text-sm font-bold transition-colors ${
+                travelMode === mode.id
+                  ? "bg-blue-500 text-white"
+                  : "text-slate-300 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <Icon icon={mode.icon} className="h-5 w-5" />
+              {mode.label}
+            </button>
+          ))}
+        </div>
+
+        {renderRouteParkingFilters()}
+
+        <button
+          type="button"
+          disabled={!points.start || !points.finish || isBuildingRoute}
+          onClick={buildRoute}
+          className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition-colors ${
+            points.start && points.finish && !isBuildingRoute
+              ? "bg-blue-500 text-white hover:bg-blue-400"
+              : "bg-slate-600 text-slate-300"
+          }`}
+        >
+          <Icon icon={isBuildingRoute ? "mdi:loading" : "mdi:navigation-variant"} className={`h-5 w-5 ${isBuildingRoute ? "animate-spin" : ""}`} />
+          {isBuildingRoute ? "Building route..." : "Build route"}
+        </button>
+
+        {routeError ? (
+          <div className="rounded-lg border border-red-300/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+            {routeError}
+          </div>
+        ) : null}
+
+        {route ? (
+          <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5">
+            <div className="grid grid-cols-3 gap-2 border-b border-white/10 p-3">
+              <div>
+                <div className="text-xs text-slate-400">Time</div>
+                <div className="text-sm font-bold">{formatDuration(route.duration)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-400">Distance</div>
+                <div className="text-sm font-bold">{formatDistance(route.distance)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-400">Mode</div>
+                <div className="text-sm font-bold capitalize">{travelMode}</div>
+              </div>
+            </div>
+
+            <div className="border-t border-white/10 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="text-xs font-bold uppercase text-blue-200">
+                  Top parking picks
+                </div>
+                <div className="text-xs text-slate-400">Utility score</div>
+              </div>
+
+              {parkingRecommendations.length > 0 ? (
+                <div className="space-y-2">
+                  {parkingRecommendations.map((recommendation, index) => {
+                    const prediction = recommendation.occupancyPrediction;
+                    const tone = availabilityTone(prediction);
+
+                    return (
+                      <button
+                        key={`${recommendation.parking.properties?.osmId || recommendation.parking.name}-${index}`}
+                        type="button"
+                        onClick={() =>
+                          onParkingRecommendationSelect?.(recommendation, {
+                            startPoint: points.start,
+                            finishPoint: points.finish,
+                          })
+                        }
+                        className={`w-full rounded-lg border ${tone.border} bg-white/5 px-3 py-3 text-left hover:bg-white/10`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone.badge} text-sm font-black`}>
+                            {index + 1}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-start justify-between gap-2">
+                              <span className="min-w-0 truncate text-sm font-bold text-white">
+                                {recommendation.parking.name || "Parking"}
+                              </span>
+                              <span className="shrink-0 text-sm font-black text-amber-200">
+                                {formatScore(recommendation.score)}
+                              </span>
+                            </span>
+                            <span className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-300">
+                              <span>Drive: {formatDuration(recommendation.metrics.driveDuration)}</span>
+                              <span>Walk: {formatDuration(recommendation.metrics.walkDuration)}</span>
+                              <span>Cost: {recommendation.metrics.costLabel}</span>
+                              <span className={tone.text}>
+                                Free: {prediction ? formatScore(prediction.probability) : "Unknown"}
+                              </span>
+                            </span>
+                            {prediction?.explanation ? (
+                              <span className="mt-2 block line-clamp-2 text-xs text-slate-400">
+                                {prediction.explanation}
+                              </span>
+                            ) : null}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-300">
+                  No nearby parking candidates found for this destination.
+                </div>
+              )}
+            </div>
+
+            {isSaving ? (
+              <div className="border-t border-white/10 px-3 py-2 text-xs text-slate-400">
+                Saving route...
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 };

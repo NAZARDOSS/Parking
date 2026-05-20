@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import locationIcon from "../../assets/locationIcon.svg";
 import "../../styles/searchInput.css";
+import { apiRequest } from "../../config/apiClient.js";
 
 const RouteSelectionForm = ({
   startPointCoordinates,
@@ -24,35 +25,26 @@ const RouteSelectionForm = ({
   const [isFinishInputFocused, setIsFinishInputFocused] = useState(false);
   const [fadeIn, setFadeIn] = useState(false);
   const [travelTime, setTravelTime] = useState(null);
-  const [routeSelected, setRouteSelected] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setFadeIn(true), 0);
     return () => clearTimeout(timer);
   }, []);
 
-  const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
-
   const saveRouteInfo = async (startPointCoordinates, finishPointCoordinates, finishPointQuery) => {
     try {
-      const response = await fetch(`${API_URL}/requests/routeInfo`, {
+      await apiRequest('/requests/routeInfo', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           startLatitude: startPointCoordinates[1],
           startLongitude: startPointCoordinates[0],
           finishLatitude: finishPointCoordinates[1],
           finishLongitude: finishPointCoordinates[0],
           finishName: finishPointQuery,
-        }),
+        },
       });
-  
-      const data = await response.json();
-      console.log('Response:', data);
     } catch (error) {
-      console.error('Error saving route info:', error);
+      setTravelTime(error.message || "Error saving route");
     }
   };
 
@@ -73,9 +65,7 @@ const RouteSelectionForm = ({
   };
 
   const handleSelectRoute = async () => {
-    console.log('select');
-    setRouteSelected(true);
-    saveRouteInfo(startPointCoordinates, finishPointCoordinates, finishPointQuery)
+    await saveRouteInfo(startPointCoordinates, finishPointCoordinates, finishPointQuery)
     await fetchTravelTime();
     handleSubmit()
   };
@@ -99,7 +89,6 @@ const RouteSelectionForm = ({
         setTravelTime("Route not found");
       }
     } catch (error) {
-      console.error("Error fetching travel time:", error);
       setTravelTime("Error fetching time");
     }
   };

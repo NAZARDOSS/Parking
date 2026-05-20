@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from "react";
-import { useDispatch, useSelector, shallowEqual } from "react-redux";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { toggleFiltersVisibility, setParkingFilters, setEVfilters } from "../Store/store.js";
 import { drawParkingMarkers } from "../lib/MapHelper.ts";
+import { evFilterGroups, parkingFilterGroups } from "../lib/filterConfig.js";
+
+const inputClass =
+  "w-full rounded-md border border-blue-200 bg-white px-2 py-1 text-sm text-gray-900 outline-none focus:border-blue-700";
 
 function FilterBlock(props) {
   const map = props.map;
+  const onParkingSelect = props.onParkingSelect;
   const dispatch = useDispatch();
   const parkingFilters = useSelector((state) => state.filters.parkingFilters);
   const EVfilters = useSelector((state) => state.filters.evFilters);
@@ -16,9 +21,12 @@ function FilterBlock(props) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hasChanges, setHasChanges] = useState(false);
-  
+
   useEffect(() => {
-    setHasChanges(JSON.stringify(tempFilters) !== JSON.stringify(parkingFilters) || JSON.stringify(tempEVFilters) !== JSON.stringify(EVfilters));
+    setHasChanges(
+      JSON.stringify(tempFilters) !== JSON.stringify(parkingFilters) ||
+        JSON.stringify(tempEVFilters) !== JSON.stringify(EVfilters)
+    );
   }, [tempFilters, parkingFilters, tempEVFilters, EVfilters]);
 
   const handleMouseDown = (e) => {
@@ -29,8 +37,8 @@ function FilterBlock(props) {
   const handleMouseMove = (e) => {
     if (isDragging) {
       setPosition({
-        top: e.clientY - dragStart.y,
-        left: e.clientX - dragStart.x,
+        top: Math.max(8, e.clientY - dragStart.y),
+        left: Math.max(8, e.clientX - dragStart.x),
       });
     }
   };
@@ -43,161 +51,183 @@ function FilterBlock(props) {
     dispatch(toggleFiltersVisibility());
   };
 
-  const handleCheckboxChange = (event) => {
-    const { name, checked } = event.target;
+  const handleParkingChange = (event) => {
+    const { name, type, checked, value } = event.target;
     setTempFilters({
       ...tempFilters,
-      [name]: checked,
+      [name]: type === "checkbox" ? checked : value,
     });
   };
 
-  const handleEVCheckboxChange = (event) => {
-    const { name, checked } = event.target;
-    
+  const handleEVChange = (event) => {
+    const { name, type, checked, value } = event.target;
     setTempEVFilters({
       ...tempEVFilters,
-      [name]: checked,
+      [name]: type === "checkbox" ? checked : value,
     });
   };
-  
 
   const handleActivateFilters = () => {
-    if (hasChanges && activeTab === 'Parkings') {
+    if (hasChanges && activeTab === "Parkings") {
       dispatch(setParkingFilters(tempFilters));
-      drawParkingMarkers(
-        map,
-        parkingData,
-        map.getZoom(),
-        parkingFilters
-      );
-    } else if (hasChanges && activeTab === 'EV Chargers') {
-      console.log('tempEVFilters: ',tempEVFilters);
+      if (map) {
+        drawParkingMarkers(map, parkingData, map.getZoom(), tempFilters, onParkingSelect);
+      }
+    } else if (hasChanges && activeTab === "EV Chargers") {
       dispatch(setEVfilters(tempEVFilters));
-      console.log('EVfilters::::::', EVfilters);
-    
-      // drawEVMarkers(map, evData, map.getZoom(), EVfilters);
     }
-    
   };
+
+  const renderCheckbox = ([name, label], values, onChange) => (
+    <label key={name} className="flex items-center gap-2 text-sm text-gray-900">
+      <input
+        type="checkbox"
+        name={name}
+        checked={values[name] || false}
+        onChange={onChange}
+        className="h-4 w-4"
+      />
+      <span>{label}</span>
+    </label>
+  );
+
+  const renderGroup = (group, values, onChange) => (
+    <section key={group.title} className="border-t border-blue-200 pt-3">
+      <h3 className="mb-2 text-sm font-bold text-blue-950">{group.title}</h3>
+      <div className="grid grid-cols-2 gap-2">
+        {group.filters.map((filter) => renderCheckbox(filter, values, onChange))}
+      </div>
+    </section>
+  );
+
+  const renderNumberInput = (name, label, values, onChange, step = "1") => (
+    <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+      {label}
+      <input
+        type="number"
+        min="0"
+        step={step}
+        name={name}
+        value={values[name] || ""}
+        onChange={onChange}
+        className={inputClass}
+      />
+    </label>
+  );
 
   return (
     <div
-      className="w-72 bg-blue-100 p-4 rounded-lg shadow-md flex flex-col items-center transition-transform duration-300 ease-in-out transform hover:scale-105 absolute cursor-move select-none"
+      className="absolute z-20 flex max-h-[80vh] w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg bg-blue-100 shadow-xl"
       style={{ top: position.top, left: position.left }}
-      onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      <button
-        onClick={handleClose}
-        className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+      <div
+        className="cursor-move select-none bg-blue-950 px-4 py-3 text-white"
+        onMouseDown={handleMouseDown}
       >
-        &#x2715;
-      </button>
-      <div className="flex w-full mb-4 rounded-lg overflow-hidden bg-gray-200">
-        <div
-          className={`flex-1 text-center py-2 px-4 font-bold cursor-pointer transition-all duration-300 ${
-            activeTab === "Parkings"
-              ? "text-white bg-blue-900"
-              : "text-black bg-gray-200 hover:bg-gray-300"
-          }`}
-          onClick={() => setActiveTab("Parkings")}
+        <button
+          onClick={handleClose}
+          className="absolute right-3 top-2 text-xl leading-none text-white/80 hover:text-white"
+          type="button"
         >
-          Parkings
-        </div>
-        <div
-          className={`flex-1 text-center py-2 px-4 font-bold cursor-pointer transition-all duration-300 ${
-            activeTab === "EV Chargers"
-              ? "text-white bg-blue-900"
-              : "text-black bg-gray-200 hover:bg-gray-300"
-          }`}
-          onClick={() => setActiveTab("EV Chargers")}
-        >
-          EV Chargers
-        </div>
+          &#x2715;
+        </button>
+        <div className="pr-8 text-base font-bold">Filters</div>
       </div>
-      <div className="w-full flex flex-col gap-2 transition-opacity duration-500 ease-in-out">
+
+      <div className="flex bg-gray-200">
+        {["Parkings", "EV Chargers"].map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            className={`flex-1 px-4 py-2 text-sm font-bold transition-colors ${
+              activeTab === tab
+                ? "bg-blue-800 text-white"
+                : "bg-gray-200 text-gray-900 hover:bg-gray-300"
+            }`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {activeTab === "Parkings" ? (
-          <div className="animate-fade-in">
-            <label className="flex items-center gap-2 text-lg w-max">
-              <input
-                type="checkbox"
-                name="free"
-                checked={tempFilters.free || false}
-                onChange={handleCheckboxChange}
-                className="w-4 h-4"
-              />
-              <span>Free</span>
-            </label>
-            <label className="flex items-center gap-2 text-lg w-max">
-              <input
-                type="checkbox"
-                name="wheelchair"
-                checked={tempFilters.wheelchair || false}
-                onChange={handleCheckboxChange}
-                className="w-4 h-4"
-              />
-              <span>♿</span>
-            </label>
-            <label className="flex items-center gap-2 text-lg w-max">
-              <input
-                type="checkbox"
-                name="twentyFour"
-                checked={tempFilters.twentyFour || false}
-                onChange={handleCheckboxChange}
-                className="w-4 h-4"
-              />
-              <span>24</span>
-            </label>
-            <label className="flex items-center gap-2 text-lg w-max">
-              <input
-                type="checkbox"
-                name="garage"
-                checked={tempFilters.garage || false}
-                onChange={handleCheckboxChange}
-                className="w-4 h-4"
-              />
-              <span>Garage</span>
-            </label>
-            <label className="flex items-center gap-2 text-lg w-max">
-              <input
-                type="checkbox"
-                name="private"
-                checked={tempFilters.private || false}
-                onChange={handleCheckboxChange}
-                className="w-4 h-4"
-              />
-              <span>Private</span>
-            </label>
-            <span>inkl Private parkings</span>
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+                Search
+                <input
+                  type="text"
+                  name="search"
+                  value={tempFilters.search || ""}
+                  onChange={handleParkingChange}
+                  className={inputClass}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+                Operator
+                <input
+                  type="text"
+                  name="operator"
+                  value={tempFilters.operator || ""}
+                  onChange={handleParkingChange}
+                  className={inputClass}
+                />
+              </label>
+              {renderNumberInput("minCapacity", "Min capacity", tempFilters, handleParkingChange)}
+              {renderNumberInput("maxHeightMeters", "Vehicle height, m", tempFilters, handleParkingChange, "0.1")}
+            </div>
+            {parkingFilterGroups.map((group) => renderGroup(group, tempFilters, handleParkingChange))}
+          </>
         ) : (
-          <div className="animate-fade-in">
-            <label className="flex items-center gap-2 text-lg w-max">
-              <input
-                type="checkbox"
-                name="tesla"
-                checked={tempEVFilters.tesla || false}
-                onChange={handleEVCheckboxChange}
-                className="w-4 h-4"
-              />
-              <span>Tesla</span>
-            </label>
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+                Search
+                <input
+                  type="text"
+                  name="search"
+                  value={tempEVFilters.search || ""}
+                  onChange={handleEVChange}
+                  className={inputClass}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+                Operator
+                <input
+                  type="text"
+                  name="operator"
+                  value={tempEVFilters.operator || ""}
+                  onChange={handleEVChange}
+                  className={inputClass}
+                />
+              </label>
+              {renderNumberInput("minPowerKw", "Min power, kW", tempEVFilters, handleEVChange)}
+              {renderNumberInput("minPoints", "Min points", tempEVFilters, handleEVChange)}
+            </div>
+            {evFilterGroups.map((group) => renderGroup(group, tempEVFilters, handleEVChange))}
+          </>
         )}
       </div>
-      <button
-        onClick={handleActivateFilters}
-        className={`mt-4 font-bold py-2 px-4 rounded-lg transition-all duration-300 transform ${
-          hasChanges
-            ? "bg-blue-500 text-white hover:bg-blue-600 hover:scale-110"
-            : "bg-gray-200 text-gray-500 cursor-not-allowed"
-        }`}
-        disabled={!hasChanges}
-      >
-        Activate Filters
-      </button>
+
+      <div className="border-t border-blue-200 p-4">
+        <button
+          onClick={handleActivateFilters}
+          className={`w-full rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
+            hasChanges
+              ? "bg-blue-700 text-white hover:bg-blue-800"
+              : "bg-gray-200 text-gray-500"
+          }`}
+          disabled={!hasChanges}
+          type="button"
+        >
+          Apply
+        </button>
+      </div>
     </div>
   );
 }

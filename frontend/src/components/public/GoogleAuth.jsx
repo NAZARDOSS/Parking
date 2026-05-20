@@ -1,52 +1,27 @@
-import React from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom'; 
+import { apiRequest, setAuthToken } from '../../config/apiClient.js';
 
-const API_URL = `${process.env.REACT_APP_HOST}:8080/api`;
-
-function GoogleAuth({ setIsLoggedIn }) {
+function GoogleAuth({ setIsLoggedIn, text = 'continue_with' }) {
   const navigate = useNavigate();
   const handleGoogleLoginSuccess = async (response) => {
     try {
       const idToken = response?.credential;
-      console.log('Google login response:', response);
+      const responseData = await apiRequest('/auth/google-login', {
+        method: 'POST',
+        auth: false,
+        body: { token: idToken },
+      });
 
-      const serverResponse = await fetch(
-        `${API_URL}/auth/google-login`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ token: idToken }),
-        },
-      );
-
-      if (serverResponse.ok) {
-        const responseData = await serverResponse.json();
-        console.log('Google login successful:', responseData);
-        localStorage.setItem('token', responseData.token); 
-
-        setIsLoggedIn(true);
-        navigate('/map');
-
-        alert('Successfully logged in with Google!');
-      } else {
-        const errorData = await serverResponse.json();
-        console.error('Failed to log in with Google:', errorData);
-        alert(
-          'Failed to log in with Google: ' +
-            (errorData.message || 'Unknown error'),
-        );
-      }
+      setAuthToken(responseData.token);
+      setIsLoggedIn(true);
+      navigate('/map');
     } catch (error) {
-      console.error('Error during Google login:', error);
-      alert('There was an error with Google login.');
+      alert(error.message || 'There was an error with Google login.');
     }
   };
 
-  const handleGoogleLoginFailure = (error) => {
-    console.error('Google login failed:', error);
+  const handleGoogleLoginFailure = () => {
     alert('Failed to log in with Google.');
   };
 
@@ -54,10 +29,9 @@ function GoogleAuth({ setIsLoggedIn }) {
     <GoogleLogin
       onSuccess={handleGoogleLoginSuccess}
       onError={handleGoogleLoginFailure}
-      useOneTap
       theme="filled_black"
       size="large"
-      text="signin_with"
+      text={text}
     />
   );
 }

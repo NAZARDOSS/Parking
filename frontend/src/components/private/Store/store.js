@@ -5,20 +5,78 @@ const filterSlice = createSlice({
   initialState: {
     isFiltersVisible: false,
     parkingFilters: {
+      search: "",
+      operator: "",
       free: false,
+      paid: false,
+      publicAccess: false,
       wheelchair: false,
+      disabledSpaces: false,
       twentyFour: false,
+      hasOpeningHours: false,
       garage: false,
+      underground: false,
+      multistorey: false,
+      surface: false,
+      street: false,
+      streetSide: false,
+      parkingSpace: false,
+      covered: false,
+      lit: false,
+      supervised: false,
+      surveillance: false,
       private: false,
+      customers: false,
+      permit: false,
+      hasCapacity: false,
+      minCapacity: "",
+      hasMaxStay: false,
+      hasMaxHeight: false,
+      maxHeightMeters: "",
+      acceptsCash: false,
+      acceptsCard: false,
+      acceptsContactless: false,
+      acceptsApp: false,
+      chargingSpaces: false,
     },
     evFilters: {
+      search: "",
+      operator: "",
       tesla: false,
+      operational: false,
+      available: false,
+      planned: false,
+      recentlyVerified: false,
+      publicAccess: false,
+      privateAccess: false,
+      payAtLocation: false,
+      membershipRequired: false,
+      accessKeyRequired: false,
+      free: false,
+      paid: false,
+      level1: false,
+      level2: false,
+      level3: false,
+      ac: false,
+      dc: false,
+      type1: false,
+      type2: false,
+      ccs: false,
+      chademo: false,
+      teslaConnector: false,
+      nacs: false,
+      schuko: false,
+      cee: false,
+      minPowerKw: "",
+      minPoints: "",
+      hasComments: false,
+      hasMedia: false,
+      hasCheckins: false,
     },
   },
   reducers: {
     toggleFiltersVisibility: (state) => {
       state.isFiltersVisible = !state.isFiltersVisible;
-      console.log(state.isFiltersVisible);
     },
     setParkingFilters: (state, action) => {
       state.parkingFilters = {
@@ -81,7 +139,6 @@ const profileSlice = createSlice({
   reducers: {
     toggleProfileVisibility: (state) => {
       state.isProfileVisible = !state.isProfileVisible;
-      console.log(state.isProfileVisible);
     },
   },
 });
@@ -94,7 +151,6 @@ const routesSlice = createSlice({
   reducers: {
     toggleRoutesVisibility: (state) => {
       state.isRoutesVisible = !state.isRoutesVisible;
-      console.log(state.isRoutesVisible);
     },
   },
 });

@@ -1,80 +1,92 @@
-import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { setIsParkingData, setIsChargerData } from "./Store/store";
 import { Icon } from "@iconify/react";
 import parking from "../../assets/parking-icon.svg";
 import { ChargerIcon } from "../icons/ChargerIcon";
-import { toggleFiltersVisibility, toggleProfileVisibility, toggleRoutesVisibility } from "./Store/store";
+import {
+  setIsParkingData,
+  setIsChargerData,
+  toggleFiltersVisibility,
+  toggleProfileVisibility,
+  toggleRoutesVisibility,
+} from "./Store/store";
+
+const tooltipClass =
+  "pointer-events-none absolute left-[68px] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-950 px-2 py-1 text-xs font-bold text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100";
+
 function Bar() {
   const dispatch = useDispatch();
   const isParkingData = useSelector((state) => state.parkings.isParkingData);
   const isChargerData = useSelector((state) => state.chargers.isChargerData);
+  const isFiltersVisible = useSelector((state) => state.filters.isFiltersVisible);
+  const isRoutesVisible = useSelector((state) => state.routes.isRoutesVisible);
+  const isProfileVisible = useSelector((state) => state.profile.isProfileVisible);
 
-  const handleParkingClick = () => {
-    dispatch(setIsParkingData(!isParkingData));
-  };
-
-  const toggleFilters = () => {
-    dispatch(toggleFiltersVisibility())
-  }
-
-  const toggleRoutes = () => {
-    dispatch(toggleRoutesVisibility())
-  }
-
-  const toggleProfile = () => {
-    dispatch(toggleProfileVisibility())
-  }
-
-  const handleChargersClick = () => {
-    dispatch(setIsChargerData(!isChargerData));
-  };
+  const buttonClass = (active) =>
+    `group relative flex h-14 w-14 items-center justify-center rounded-lg border transition-colors ${
+      active
+        ? "border-blue-300 bg-white text-blue-950 shadow-lg"
+        : "border-white/10 bg-white/10 text-white hover:border-blue-300/70 hover:bg-white/20"
+    }`;
 
   return (
-    <div className="flex flex-col m-5">
-      <button className="btn bg-[#002457] m-5 border-[#0777F7] border-2 rounded-2xl shadow-blurred-3xl hover:bg-[#001957ae]" onClick={toggleFilters}>
-        <Icon
-          icon="bi:toggles"
-          className="w-12 h-12 m-4 text-white transition duration-200 ease-in-out"
-        />
-      </button>
-
+    <nav className="flex h-full flex-col items-center gap-3 px-3 py-5">
       <button
-        className={`btn m-5 border-[#0777F7] border-2 rounded-2xl shadow-blurred-3xl group ${isParkingData ? 'bg-white' : 'bg-[#002457]'}`}
-        onClick={handleParkingClick}
+        type="button"
+        className={buttonClass(isFiltersVisible)}
+        onClick={() => dispatch(toggleFiltersVisibility())}
+        aria-label="Filters"
+        title="Filters"
       >
-        <img
-          src={parking}
-          alt="Parking Icon"
-          className="w-12 h-12 m-4 group-hover:brightness-150 transition duration-200 ease-in-out"
-        />
+        <Icon icon="bi:toggles" className="h-6 w-6" />
+        <span className={tooltipClass}>Filters</span>
       </button>
 
       <button
-        className={`btn m-5 border-[#0777F7] border-2 rounded-2xl shadow-blurred-3xl group ${isChargerData ? 'bg-white' : 'bg-[#002457]'}`}
-        onClick={handleChargersClick}
+        type="button"
+        className={buttonClass(isParkingData)}
+        onClick={() => dispatch(setIsParkingData(!isParkingData))}
+        aria-label="Parkings"
+        title="Parkings"
+      >
+        <img src={parking} alt="" className="h-7 w-7" />
+        <span className={tooltipClass}>Parkings</span>
+      </button>
+
+      <button
+        type="button"
+        className={buttonClass(isChargerData)}
+        onClick={() => dispatch(setIsChargerData(!isChargerData))}
+        aria-label="EV chargers"
+        title="EV chargers"
       >
         <ChargerIcon />
+        <span className={tooltipClass}>EV chargers</span>
       </button>
 
       <button
-      className="btn bg-[#002457] m-5 border-[#0777F7] border-2 rounded-2xl shadow-blurred-3xl hover:bg-[#001957ae]"
-      onClick={toggleRoutes}
+        type="button"
+        className={buttonClass(isRoutesVisible)}
+        onClick={() => dispatch(toggleRoutesVisibility())}
+        aria-label="Saved routes"
+        title="Saved routes"
       >
-        <Icon
-          icon="mdi:database-location"
-          className="w-12 h-12 m-4 text-white  transition duration-200 ease-in-out"
-        />
+        <Icon icon="mdi:map-marker-path" className="h-6 w-6" />
+        <span className={tooltipClass}>Saved routes</span>
       </button>
 
-      <button className="btn bg-[#002457] m-5 border-[#0777F7] border-2 rounded-2xl shadow-blurred-3xl hover:bg-[#001957ae]">
-        <Icon
-          icon="fa6-solid:user"
-          className="w-12 h-12 m-4 text-white transition duration-200 ease-in-out"
-          onClick={toggleProfile}
-        />
+      <div className="flex-1" />
+
+      <button
+        type="button"
+        className={buttonClass(isProfileVisible)}
+        onClick={() => dispatch(toggleProfileVisibility())}
+        aria-label="Profile"
+        title="Profile"
+      >
+        <Icon icon="fa6-solid:user" className="h-5 w-5" />
+        <span className={tooltipClass}>Profile</span>
       </button>
-    </div>
+    </nav>
   );
 }
 
