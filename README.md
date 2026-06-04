@@ -113,6 +113,6 @@ npm run audit
 
 ## Deployment
 
-Frontend and backend deployment are configured for Vercel as two projects from the same monorepo.
+Frontend and backend deployment are configured for Vercel as one project from the repository root: Vite serves the frontend and `/api/*` is handled by the Express backend function.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the production environment variables, TiDB setup, Vercel settings and backend health check.
