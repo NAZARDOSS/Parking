@@ -10,7 +10,7 @@ This project is deployed from one GitHub monorepo as two separate Vercel project
 
 The backend is configured for Vercel with:
 
-- `backend/index.js` as the Vercel Express entry point.
+- `backend/api/index.js` as the Vercel Express Function entry point.
 - `backend/vercel.json` to route all backend paths into Express.
 - `server/data/parking-cache/**` explicitly included in the function bundle.
 
