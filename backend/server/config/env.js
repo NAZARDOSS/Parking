@@ -58,6 +58,9 @@ export const env = {
     waitForConnections: true,
     connectionLimit: readNumber(process.env.DB_CONNECTION_LIMIT, 10),
     queueLimit: 0,
+    ssl: readBoolean(process.env.DB_SSL, false)
+      ? { rejectUnauthorized: readBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, true) }
+      : undefined,
   },
 };
 

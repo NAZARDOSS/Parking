@@ -304,17 +304,32 @@ const getCandidatePool = async ({
   parkingFilters,
   cacheDir,
   forceCache,
+  fallbackParkingsProvider,
 }) => {
   const bounds = boundsAroundPoint(finishPoint, radiusMeters);
-  const cachedParkings = await loadCachedParkingsForBounds(bounds, { cacheDir, force: forceCache });
+  const cachedParkings = await loadCachedParkingsForBounds(bounds, {
+    cacheDir,
+    force: forceCache,
+    requiredPointInsideCacheBbox: finishPoint,
+  });
 
-  const radialCandidates = cachedParkings
-    .map((parking) => ({
-      parking,
-      destinationDistance: distanceMeters([parking.lon, parking.lat], finishPoint),
-    }))
-    .filter(({ destinationDistance }) => destinationDistance <= radiusMeters)
-    .sort((a, b) => a.destinationDistance - b.destinationDistance);
+  const buildRadialCandidates = (parkings = []) =>
+    parkings
+      .map((parking) => ({
+        parking,
+        destinationDistance: distanceMeters([parking.lon, parking.lat], finishPoint),
+      }))
+      .filter(({ destinationDistance }) => destinationDistance <= radiusMeters)
+      .sort((a, b) => a.destinationDistance - b.destinationDistance);
+
+  let source = 'parking-cache';
+  let radialCandidates = buildRadialCandidates(cachedParkings);
+
+  if (!radialCandidates.length && typeof fallbackParkingsProvider === 'function') {
+    const fallbackParkings = await fallbackParkingsProvider(bounds);
+    radialCandidates = buildRadialCandidates(Array.isArray(fallbackParkings) ? fallbackParkings : []);
+    source = 'overpass-api';
+  }
 
   const filtersApplied = hasActiveParkingFilters(parkingFilters);
   const filteredCandidates = filtersApplied
@@ -326,6 +341,7 @@ const getCandidatePool = async ({
     filtersApplied,
     radialCandidateCount: radialCandidates.length,
     filteredCandidateCount: filteredCandidates.length,
+    source,
   };
 };
 
@@ -406,6 +422,7 @@ export const recommendParkings = async ({
   accessToken = env.mapboxAccessToken,
   cacheDir,
   forceCache = false,
+  fallbackParkingsProvider,
 }) => {
   if (!accessToken) {
     const error = new Error('Mapbox access token is not configured');
@@ -421,6 +438,7 @@ export const recommendParkings = async ({
     filtersApplied,
     radialCandidateCount,
     filteredCandidateCount,
+    source,
   } = await getCandidatePool({
     finishPoint,
     radiusMeters: safeRadius,
@@ -428,6 +446,7 @@ export const recommendParkings = async ({
     parkingFilters,
     cacheDir,
     forceCache,
+    fallbackParkingsProvider,
   });
 
   if (!candidatePool.length) {
@@ -441,7 +460,7 @@ export const recommendParkings = async ({
         filtersApplied,
         matrixCandidateCount: 0,
         matrixCoordinateLimit: MAX_MATRIX_COORDINATES,
-        source: 'parking-cache',
+        source,
       },
     };
   }
@@ -517,7 +536,7 @@ export const recommendParkings = async ({
         walking: 'Nx1',
         cycling: includeCycling ? '1xN' : null,
       },
-      source: 'parking-cache',
+      source,
     },
   };
 };

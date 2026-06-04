@@ -648,6 +648,20 @@ export const getParkingRecommendations = async (req, res) => {
       enableOccupancyPrediction,
       occupancyPredictionLimit,
       predictionContext,
+      fallbackParkingsProvider: async (bounds) => {
+        const query = buildOverpassParkingQuery(bounds);
+        const data = await fetchJson(OVERPASS_API_URL, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'User-Agent': 'ParkingMVP/0.1 (local development)',
+          },
+          body: `data=${encodeURIComponent(query)}`,
+        });
+
+        return (data.elements || []).map(normalizeOsmParking).filter(Boolean);
+      },
     });
 
     res.status(200).json(result);

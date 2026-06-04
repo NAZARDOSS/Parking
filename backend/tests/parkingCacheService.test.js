@@ -19,6 +19,7 @@ describe('Parking Cache Service', () => {
       path.join(cacheDir, 'test.geojson'),
       JSON.stringify({
         type: 'FeatureCollection',
+        bbox: [8.16, 48.72, 8.32, 48.83],
         features: [
           {
             type: 'Feature',
@@ -84,5 +85,45 @@ describe('Parking Cache Service', () => {
         }),
       }),
     ]);
+  });
+
+  it('skips a cache file when the required point is outside the cache bbox', async () => {
+    await fs.writeFile(
+      path.join(cacheDir, 'baden-baden.geojson'),
+      JSON.stringify({
+        type: 'FeatureCollection',
+        bbox: [8.16, 48.72, 8.32, 48.83],
+        features: [
+          {
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [8.245, 48.755],
+            },
+            properties: {
+              name: 'Cached Garage',
+              centroidLat: 48.755,
+              centroidLon: 8.245,
+            },
+          },
+        ],
+      })
+    );
+
+    const parkings = await loadCachedParkingsForBounds(
+      {
+        neLat: 48.76,
+        neLng: 8.25,
+        swLat: 48.75,
+        swLng: 8.24,
+      },
+      {
+        cacheDir,
+        force: true,
+        requiredPointInsideCacheBbox: [13.405, 52.52],
+      }
+    );
+
+    expect(parkings).toEqual([]);
   });
 });

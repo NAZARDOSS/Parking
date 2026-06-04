@@ -27,6 +27,7 @@ cp frontend/.env.example frontend/.env
 
 - `backend/.env`: `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`
 - `frontend/.env`: `VITE_MAPBOX_ACCESS_TOKEN`
+- For hosted MySQL/TiDB databases, set `DB_SSL=true` if TLS is required.
 - Required for EV chargers: `OPEN_CHARGE_MAP_API_KEY`
 - Optional OAuth values: `GOOGLE_CLIENT_ID`, `VITE_GOOGLE_CLIENT_ID`
 - Optional free password-reset email values: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
@@ -109,3 +110,9 @@ npm run test
 npm run build
 npm run audit
 ```
+
+## Deployment
+
+Frontend and backend deployment are configured for Vercel as two projects from the same monorepo.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the production environment variables, TiDB setup, Vercel settings and backend health check.

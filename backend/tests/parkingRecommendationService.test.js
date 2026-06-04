@@ -9,6 +9,7 @@ const writeCache = async (cacheDir) => {
     path.join(cacheDir, 'test.geojson'),
     JSON.stringify({
       type: 'FeatureCollection',
+      bbox: [8.16, 48.72, 8.32, 48.83],
       features: [
         {
           type: 'Feature',
@@ -191,5 +192,64 @@ describe('Parking Recommendation Service', () => {
     expect(drivingUrl.searchParams.get('destinations')).toBe('1');
     expect(walkingUrl.searchParams.get('sources')).toBe('0');
     expect(walkingUrl.searchParams.get('destinations')).toBe('1');
+  });
+
+  it('uses fallback parkings when the cache does not cover the destination', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    const fallbackParkingsProvider = jest.fn(async () => [
+      {
+        name: 'Live Overpass Parking',
+        address: '',
+        lat: 52.5205,
+        lon: 13.4055,
+        geometry: null,
+        properties: {
+          source: 'openstreetmap',
+          costIndex: 1,
+          categories: ['parking'],
+        },
+      },
+    ]);
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          code: 'Ok',
+          durations: [[300]],
+          distances: [[1000]],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          code: 'Ok',
+          durations: [[120]],
+          distances: [[300]],
+        }),
+      });
+
+    const result = await recommendParkings({
+      startPoint: [13.39, 52.52],
+      finishPoint: [13.405, 52.52],
+      radiusMeters: 1000,
+      enableOccupancyPrediction: false,
+      accessToken: 'test-mapbox-token',
+      cacheDir,
+      forceCache: true,
+      fallbackParkingsProvider,
+    });
+
+    expect(fallbackParkingsProvider).toHaveBeenCalledTimes(1);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0].parking.name).toBe('Live Overpass Parking');
+    expect(result.meta).toMatchObject({
+      source: 'overpass-api',
+      prefilteredCount: 1,
+      radialCandidateCount: 1,
+      filteredCandidateCount: 1,
+      matrixCandidateCount: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

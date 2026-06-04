@@ -12,6 +12,16 @@ const coordinateInBounds = ([lng, lat], bounds) =>
   lng <= bounds.neLng &&
   lng >= bounds.swLng;
 
+const coordinateInGeoJsonBbox = ([lng, lat], bbox) => {
+  if (!Array.isArray(bbox) || bbox.length !== 4) return false;
+
+  const [west, south, east, north] = bbox.map(Number);
+
+  if (![west, south, east, north, lng, lat].every(Number.isFinite)) return false;
+
+  return lng >= west && lng <= east && lat >= south && lat <= north;
+};
+
 const getFeatureCenter = (feature) => {
   const properties = feature?.properties || {};
   const lat = Number(properties.centroidLat ?? properties.lat);
@@ -97,7 +107,11 @@ const listGeoJsonFiles = async (cacheDir) => {
 
 export const loadCachedParkingsForBounds = async (
   bounds,
-  { cacheDir = process.env.PARKING_CACHE_DIR || DEFAULT_CACHE_DIR, force = false } = {}
+  {
+    cacheDir = process.env.PARKING_CACHE_DIR || DEFAULT_CACHE_DIR,
+    force = false,
+    requiredPointInsideCacheBbox = null,
+  } = {}
 ) => {
   if (env.isTest && !force) return [];
 
@@ -106,6 +120,14 @@ export const loadCachedParkingsForBounds = async (
 
   for (const filePath of files) {
     const featureCollection = await readCacheFile(filePath);
+
+    if (
+      requiredPointInsideCacheBbox &&
+      !coordinateInGeoJsonBbox(requiredPointInsideCacheBbox, featureCollection.bbox)
+    ) {
+      continue;
+    }
+
     const features = Array.isArray(featureCollection.features) ? featureCollection.features : [];
 
     features.forEach((feature) => {
