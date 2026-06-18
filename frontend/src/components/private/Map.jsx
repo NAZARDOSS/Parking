@@ -132,6 +132,7 @@ function Map({ setIsLoggedIn }) {
   
   const isParkingData = useSelector((state) => state.parkings.isParkingData);
   const isChargerData = useSelector((state) => state.chargers.isChargerData);
+  const isRoutePlannerVisible = useSelector((state) => state.routePlanner.isRoutePlannerVisible);
 
   const mapboxAccessToken = MAPBOX_ACCESS_TOKEN;
 
@@ -200,11 +201,11 @@ function Map({ setIsLoggedIn }) {
           finishPoint,
           parkingFilters: parkingFiltersOverride || parkingFilters,
           radiusMeters: 1000,
-          maxCandidates: 20,
-          limit: 3,
+          maxCandidates: 200,
+          limit: 200,
           includeCycling: travelMode === "cycling",
           enableOccupancyPrediction: true,
-          occupancyPredictionLimit: 8,
+          occupancyPredictionLimit: 200,
         });
 
         const recommendations = result.candidates || [];
@@ -290,6 +291,12 @@ function Map({ setIsLoggedIn }) {
       setSelectedPlace(null);
     }
   }, [isParkingData, isChargerData, selectedPlace]);
+
+  useEffect(() => {
+    if (isRoutesVisible) {
+      setSelectedPlace(null);
+    }
+  }, [isRoutesVisible]);
 
   useEffect(() => {
     if (!mapContainer.current || !mapboxAccessToken) return;
@@ -401,10 +408,9 @@ function Map({ setIsLoggedIn }) {
     <div className="map_block relative h-screen w-full overflow-hidden">
       <Toaster position="top-right" reverseOrder={false} />
       <div ref={mapContainer} className="w-full h-screen"></div>
-      <div className="z-10 absolute top-5 right-5">
+      <div className={`z-10 absolute top-5 right-5 ${isRoutePlannerVisible ? "" : "hidden"}`}>
         <SearchInput
           map={map}
-          placeholder="Search"
           apiKey={mapboxAccessToken}
           onResultSelect={handleSearchResult}
           onParkingRecommendationSelect={handleParkingRecommendationSelect}

@@ -78,6 +78,9 @@ const filterSlice = createSlice({
     toggleFiltersVisibility: (state) => {
       state.isFiltersVisible = !state.isFiltersVisible;
     },
+    setFiltersVisible: (state, action) => {
+      state.isFiltersVisible = action.payload;
+    },
     setParkingFilters: (state, action) => {
       state.parkingFilters = {
         ...state.parkingFilters,
@@ -140,6 +143,9 @@ const profileSlice = createSlice({
     toggleProfileVisibility: (state) => {
       state.isProfileVisible = !state.isProfileVisible;
     },
+    setProfileVisible: (state, action) => {
+      state.isProfileVisible = action.payload;
+    },
   },
 });
 
@@ -152,6 +158,21 @@ const routesSlice = createSlice({
     toggleRoutesVisibility: (state) => {
       state.isRoutesVisible = !state.isRoutesVisible;
     },
+    setRoutesVisible: (state, action) => {
+      state.isRoutesVisible = action.payload;
+    },
+  },
+});
+
+const routePlannerSlice = createSlice({
+  name: "routePlanner",
+  initialState: {
+    isRoutePlannerVisible: true,
+  },
+  reducers: {
+    setRoutePlannerVisible: (state, action) => {
+      state.isRoutePlannerVisible = action.payload;
+    },
   },
 });
 
@@ -161,14 +182,16 @@ const store = configureStore({
     chargers: chargersSlice.reducer,
     filters: filterSlice.reducer,
     profile: profileSlice.reducer,
-    routes: routesSlice.reducer
+    routes: routesSlice.reducer,
+    routePlanner: routePlannerSlice.reducer,
   },
 });
 
 export const { setParkingData, setIsParkingData } = parkingsSlice.actions;
 export const { setEvData, setIsChargerData } = chargersSlice.actions;
-export const { toggleFiltersVisibility, setParkingFilters, setEVfilters } = filterSlice.actions;
-export const { toggleProfileVisibility } = profileSlice.actions;
-export const { toggleRoutesVisibility } = routesSlice.actions
+export const { toggleFiltersVisibility, setFiltersVisible, setParkingFilters, setEVfilters } = filterSlice.actions;
+export const { toggleProfileVisibility, setProfileVisible } = profileSlice.actions;
+export const { toggleRoutesVisibility, setRoutesVisible } = routesSlice.actions;
+export const { setRoutePlannerVisible } = routePlannerSlice.actions;
 
 export default store;

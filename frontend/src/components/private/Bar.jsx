@@ -5,9 +5,10 @@ import { ChargerIcon } from "../icons/ChargerIcon";
 import {
   setIsParkingData,
   setIsChargerData,
-  toggleFiltersVisibility,
-  toggleProfileVisibility,
-  toggleRoutesVisibility,
+  setFiltersVisible,
+  setProfileVisible,
+  setRoutesVisible,
+  setRoutePlannerVisible,
 } from "./Store/store";
 
 const tooltipClass =
@@ -20,6 +21,7 @@ function Bar() {
   const isFiltersVisible = useSelector((state) => state.filters.isFiltersVisible);
   const isRoutesVisible = useSelector((state) => state.routes.isRoutesVisible);
   const isProfileVisible = useSelector((state) => state.profile.isProfileVisible);
+  const isRoutePlannerVisible = useSelector((state) => state.routePlanner.isRoutePlannerVisible);
 
   const buttonClass = (active) =>
     `group relative flex h-14 w-14 items-center justify-center rounded-lg border transition-colors ${
@@ -32,8 +34,26 @@ function Bar() {
     <nav className="flex h-full flex-col items-center gap-3 px-3 py-5">
       <button
         type="button"
+        className={buttonClass(isRoutePlannerVisible)}
+        onClick={() => dispatch(setRoutePlannerVisible(!isRoutePlannerVisible))}
+        aria-label="Планувальник маршрутів"
+        title="Планувальник маршрутів"
+      >
+        <Icon icon="mdi:navigation-variant-outline" className="h-6 w-6" />
+        <span className={tooltipClass}>Планувальник</span>
+      </button>
+
+      <button
+        type="button"
         className={buttonClass(isFiltersVisible)}
-        onClick={() => dispatch(toggleFiltersVisibility())}
+        onClick={() => {
+          const next = !isFiltersVisible;
+          dispatch(setFiltersVisible(next));
+          if (next) {
+            dispatch(setProfileVisible(false));
+            dispatch(setRoutesVisible(false));
+          }
+        }}
         aria-label="Filters"
         title="Filters"
       >
@@ -66,7 +86,14 @@ function Bar() {
       <button
         type="button"
         className={buttonClass(isRoutesVisible)}
-        onClick={() => dispatch(toggleRoutesVisibility())}
+        onClick={() => {
+          const next = !isRoutesVisible;
+          dispatch(setRoutesVisible(next));
+          if (next) {
+            dispatch(setFiltersVisible(false));
+            dispatch(setProfileVisible(false));
+          }
+        }}
         aria-label="Saved routes"
         title="Saved routes"
       >
@@ -79,7 +106,14 @@ function Bar() {
       <button
         type="button"
         className={buttonClass(isProfileVisible)}
-        onClick={() => dispatch(toggleProfileVisibility())}
+        onClick={() => {
+          const next = !isProfileVisible;
+          dispatch(setProfileVisible(next));
+          if (next) {
+            dispatch(setFiltersVisible(false));
+            dispatch(setRoutesVisible(false));
+          }
+        }}
         aria-label="Profile"
         title="Profile"
       >

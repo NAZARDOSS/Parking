@@ -3,7 +3,7 @@ import { shallowEqual, useDispatch, useSelector } from "react-redux";
 import { Icon } from "@iconify/react";
 import mapboxgl from "mapbox-gl";
 import { apiRequest } from "../../config/apiClient.js";
-import { setParkingFilters } from "./Store/store.js";
+import { setParkingFilters, setRoutePlannerVisible } from "./Store/store.js";
 import {
   countActiveFilters,
   getActiveParkingFilterLabels,
@@ -11,23 +11,28 @@ import {
 } from "./lib/filterConfig.js";
 
 const travelModes = [
-  { id: "driving", label: "Drive", icon: "mdi:car", description: "Fastest road route" },
-  { id: "walking", label: "Walk", icon: "mdi:walk", description: "Pedestrian route" },
-  { id: "cycling", label: "Bike", icon: "mdi:bike", description: "Cycling route" },
+  { id: "driving", label: "Авто", icon: "mdi:car", description: "Найшвидший маршрут" },
+  { id: "walking", label: "Пішки", icon: "mdi:walk", description: "Пішохідний маршрут" },
+  { id: "cycling", label: "Велосипед", icon: "mdi:bike", description: "Маршрут велосипедом" },
 ];
+
+const pluralTimes = (n) => {
+  if (n === 1) return "раз";
+  if (n >= 2 && n <= 4) return "рази";
+  return "разів";
+};
 
 const formatDuration = (seconds = 0) => {
   const minutes = Math.max(1, Math.round(seconds / 60));
-  if (minutes < 60) return `${minutes} min`;
-
+  if (minutes < 60) return `${minutes} хв`;
   const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
+  const rem = minutes % 60;
+  return rem ? `${hours} г ${rem} хв` : `${hours} г`;
 };
 
 const formatDistance = (meters = 0) => {
-  if (meters < 1000) return `${Math.round(meters)} m`;
-  return `${(meters / 1000).toFixed(1)} km`;
+  if (meters < 1000) return `${Math.round(meters)} м`;
+  return `${(meters / 1000).toFixed(1)} км`;
 };
 
 const formatScore = (score = 0) => `${Math.round(score * 100)}%`;
@@ -62,24 +67,24 @@ const routeFilterInputClass =
   "min-w-0 rounded-md border border-white/10 bg-white/10 px-2 py-2 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-blue-300";
 
 const suggestionTitle = (suggestion) =>
-  suggestion?.name || suggestion?.name_preferred || suggestion?.text || "Unknown place";
+  suggestion?.name || suggestion?.name_preferred || suggestion?.text || "Невідоме місце";
 
 const suggestionSubtitle = (suggestion) =>
   suggestion?.place_formatted ||
   suggestion?.full_address ||
   suggestion?.address ||
   suggestion?.context?.place?.name ||
-  "No additional information";
+  "Немає додаткової інформації";
 
 const fieldConfig = {
   start: {
-    label: "Start",
-    placeholder: "Choose starting point",
+    label: "Початок",
+    placeholder: "Оберіть початкову точку",
     icon: "mdi:map-marker-radius",
   },
   finish: {
-    label: "Destination",
-    placeholder: "Where are you going?",
+    label: "Призначення",
+    placeholder: "Куди ви їдете?",
     icon: "mdi:flag-checkered",
   },
 };
@@ -87,47 +92,35 @@ const fieldConfig = {
 const toLngLat = (latitude, longitude) => {
   const lat = Number(latitude);
   const lng = Number(longitude);
-
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-
   return [lng, lat];
 };
 
-const routeKey = (route) => [
-  Number(route.start_latitude).toFixed(4),
-  Number(route.start_longitude).toFixed(4),
-  Number(route.finish_latitude).toFixed(4),
-  Number(route.finish_longitude).toFixed(4),
-  String(route.finish_name || "").trim().toLowerCase(),
-].join("|");
+const routeKey = (route) =>
+  [
+    Number(route.start_latitude).toFixed(4),
+    Number(route.start_longitude).toFixed(4),
+    Number(route.finish_latitude).toFixed(4),
+    Number(route.finish_longitude).toFixed(4),
+    String(route.finish_name || "").trim().toLowerCase(),
+  ].join("|");
 
 const getPopularRoutes = (routes = []) => {
   const groups = new Map();
-
   routes.forEach((route) => {
     const startPoint = toLngLat(route.start_latitude, route.start_longitude);
     const finishPoint = toLngLat(route.finish_latitude, route.finish_longitude);
     if (!startPoint || !finishPoint) return;
-
     const key = routeKey(route);
     const current = groups.get(key);
     const createdAt = new Date(route.created_at || 0).getTime() || 0;
-
     if (!current) {
-      groups.set(key, {
-        ...route,
-        startPoint,
-        finishPoint,
-        count: 1,
-        lastUsedAt: createdAt,
-      });
+      groups.set(key, { ...route, startPoint, finishPoint, count: 1, lastUsedAt: createdAt });
       return;
     }
-
     current.count += 1;
     current.lastUsedAt = Math.max(current.lastUsedAt, createdAt);
   });
-
   return Array.from(groups.values())
     .sort((a, b) => b.count - a.count || b.lastUsedAt - a.lastUsedAt)
     .slice(0, 6);
@@ -140,8 +133,63 @@ const createDraftMarkerElement = (field) => {
     isStart ? "bg-emerald-500" : "bg-blue-600"
   }`;
   element.textContent = isStart ? "A" : "B";
-  element.setAttribute("aria-label", isStart ? "Draft route start" : "Draft route destination");
+  element.setAttribute("aria-label", isStart ? "Початок маршруту" : "Кінцева точка маршруту");
   return element;
+};
+
+// Ukrainian translations for filter labels (filterConfig.js stays in English for FilterBlock)
+const ukGroupTitles = {
+  Access: "Доступ",
+  Price: "Ціна",
+  Type: "Тип",
+  Facilities: "Умови",
+  Limits: "Обмеження",
+};
+
+const ukFilterLabels = {
+  Public: "Публічний",
+  Private: "Приватний",
+  Customers: "Для клієнтів",
+  "Permit / residents": "Дозвіл",
+  Free: "Безкоштовно",
+  Paid: "Платний",
+  Cash: "Готівка",
+  Card: "Картка",
+  Contactless: "Безконтактний",
+  "App payment": "Застосунок",
+  Garage: "Гараж",
+  Underground: "Підземний",
+  Multistorey: "Поверховий",
+  Surface: "Наземний",
+  "Street parking": "Вулична",
+  "Street side": "Узбіч",
+  "Single spaces": "Поодинокі",
+  Wheelchair: "Для візків",
+  "Disabled spaces": "Для інвалідів",
+  "24/7": "Цілодобово",
+  "Opening hours": "Відомі години",
+  Covered: "Накритий",
+  Lit: "Освітлений",
+  Supervised: "З охороною",
+  Surveillance: "Відеонагляд",
+  "Charging spaces": "Для зарядки",
+  "Capacity known": "Відома місткість",
+  "Max stay known": "Відомий макс. час",
+  "Max height known": "Відома макс. висота",
+  Search: "Пошук",
+  Operator: "Оператор",
+  "Min capacity": "Мін. місць",
+  "Vehicle height": "Висота авто",
+};
+
+const translateFilterLabel = (label) => {
+  const colonIdx = label.indexOf(": ");
+  if (colonIdx > -1) {
+    const key = label.slice(0, colonIdx);
+    const val = label.slice(colonIdx + 2);
+    return `${ukFilterLabels[key] || key}: ${val}`;
+  }
+  return ukFilterLabels[label] || label;
 };
 
 const SearchInput = ({
@@ -157,6 +205,8 @@ const SearchInput = ({
     (state) => state.filters.parkingFilters,
     shallowEqual
   );
+  const isVisible = useSelector((state) => state.routePlanner.isRoutePlannerVisible);
+
   const [queries, setQueries] = useState({ start: "", finish: "" });
   const [points, setPoints] = useState({ start: null, finish: null });
   const [suggestions, setSuggestions] = useState({ start: [], finish: [] });
@@ -172,12 +222,14 @@ const SearchInput = ({
   const [popularRoutes, setPopularRoutes] = useState([]);
   const [pickMode, setPickMode] = useState(null);
   const [routeParkingFilters, setRouteParkingFilters] = useState(savedParkingFilters);
+
   const sessionTokenRef = useRef(Math.random().toString(36).slice(2));
   const containerRef = useRef(null);
   const draftMarkersRef = useRef({ start: null, finish: null });
   const mapPickCleanupRef = useRef(null);
+
   const activeFilterCount = countActiveFilters(routeParkingFilters);
-  const activeFilterLabels = getActiveParkingFilterLabels(routeParkingFilters);
+  const activeFilterLabels = getActiveParkingFilterLabels(routeParkingFilters).map(translateFilterLabel);
 
   const clearMapPicker = useCallback(() => {
     mapPickCleanupRef.current?.();
@@ -198,7 +250,6 @@ const SearchInput = ({
   const updateDraftMarker = useCallback(
     (field, point) => {
       if (!map || !point) return;
-
       removeDraftMarker(field);
       draftMarkersRef.current[field] = new mapboxgl.Marker({
         element: createDraftMarkerElement(field),
@@ -210,13 +261,20 @@ const SearchInput = ({
     [map, removeDraftMarker]
   );
 
+  // Cancel map pick when panel is hidden
+  useEffect(() => {
+    if (!isVisible) {
+      clearMapPicker();
+      setFocusedField(null);
+    }
+  }, [isVisible, clearMapPicker]);
+
   useEffect(() => {
     setRouteParkingFilters(savedParkingFilters);
   }, [savedParkingFilters]);
 
   useEffect(() => {
     let isMounted = true;
-
     apiRequest("/requests/getRoutes")
       .then((routes) => {
         if (isMounted) {
@@ -224,11 +282,8 @@ const SearchInput = ({
         }
       })
       .catch(() => {
-        if (isMounted) {
-          setPopularRoutes([]);
-        }
+        if (isMounted) setPopularRoutes([]);
       });
-
     return () => {
       isMounted = false;
     };
@@ -240,15 +295,17 @@ const SearchInput = ({
         setFocusedField(null);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => () => {
-    clearMapPicker();
-    clearDraftMarkers();
-  }, [clearDraftMarkers, clearMapPicker]);
+  useEffect(
+    () => () => {
+      clearMapPicker();
+      clearDraftMarkers();
+    },
+    [clearDraftMarkers, clearMapPicker]
+  );
 
   const fetchSuggestions = useCallback(
     async (query, field) => {
@@ -257,9 +314,7 @@ const SearchInput = ({
         setSuggestions((current) => ({ ...current, [field]: [] }));
         return;
       }
-
       setLoadingSuggestions((current) => ({ ...current, [field]: true }));
-
       try {
         const url = new URL("https://api.mapbox.com/search/searchbox/v1/suggest");
         url.searchParams.set("q", trimmedQuery);
@@ -267,15 +322,13 @@ const SearchInput = ({
         url.searchParams.set("session_token", sessionTokenRef.current);
         url.searchParams.set("limit", "6");
         url.searchParams.set("types", "poi,address,place,street");
-
         if (userLocation) {
           url.searchParams.set("proximity", `${userLocation.lng},${userLocation.lat}`);
         }
-
         const response = await fetch(url);
         const data = await response.json();
         setSuggestions((current) => ({ ...current, [field]: data.suggestions || [] }));
-      } catch (error) {
+      } catch {
         setSuggestions((current) => ({ ...current, [field]: [] }));
       } finally {
         setLoadingSuggestions((current) => ({ ...current, [field]: false }));
@@ -319,42 +372,39 @@ const SearchInput = ({
 
   const selectCurrentLocation = (field) => {
     if (!userLocation) {
-      setRouteError("Current location is not available yet.");
+      setRouteError("Поточне місцезнаходження ще недоступне.");
       return;
     }
-
     const point = [userLocation.lng, userLocation.lat];
-    setPickedPoint(field, point, "Current location");
+    setPickedPoint(field, point, "Поточне місцезнаходження");
     map?.flyTo({ center: point, zoom: 14, essential: true });
   };
 
   const startMapPick = useCallback(
     (field) => {
       if (!map) {
-        setRouteError("Map is not ready yet.");
+        setRouteError("Карта ще не готова.");
         return;
       }
-
       clearMapPicker();
       setPickMode(field);
       setFocusedField(null);
-      setRouteError(`Click on the map to set ${fieldConfig[field].label.toLowerCase()}.`);
-
+      setRouteError(`Клікніть на карту для встановлення точки "${fieldConfig[field].label}".`);
       const canvas = map.getCanvas();
       const previousCursor = canvas.style.cursor;
       canvas.style.cursor = "crosshair";
-
       const handleClick = (event) => {
         const point = [event.lngLat.lng, event.lngLat.lat];
         setPickedPoint(
           field,
           point,
-          field === "start" ? `Pinned start (${formatCoordinateLabel(point)})` : `Pinned destination (${formatCoordinateLabel(point)})`
+          field === "start"
+            ? `Закріплений початок (${formatCoordinateLabel(point)})`
+            : `Закріплений пункт (${formatCoordinateLabel(point)})`
         );
         map.flyTo({ center: point, zoom: Math.max(map.getZoom(), 15), essential: true });
         clearMapPicker();
       };
-
       map.once("click", handleClick);
       mapPickCleanupRef.current = () => {
         map.off("click", handleClick);
@@ -366,34 +416,29 @@ const SearchInput = ({
 
   const selectSuggestion = async (field, suggestion) => {
     if (!suggestion?.mapbox_id) return;
-
     try {
-      const url = new URL(`https://api.mapbox.com/search/searchbox/v1/retrieve/${suggestion.mapbox_id}`);
+      const url = new URL(
+        `https://api.mapbox.com/search/searchbox/v1/retrieve/${suggestion.mapbox_id}`
+      );
       url.searchParams.set("access_token", apiKey);
       url.searchParams.set("session_token", sessionTokenRef.current);
-
       const response = await fetch(url);
       const data = await response.json();
       const coordinates = data?.features?.[0]?.geometry?.coordinates;
-
       if (!coordinates) return;
-
       setPickedPoint(field, coordinates, suggestionTitle(suggestion));
       map?.flyTo({ center: coordinates, zoom: 14, essential: true });
-    } catch (error) {
-      setRouteError("Could not select this place.");
+    } catch {
+      setRouteError("Не вдалося обрати це місце.");
     }
   };
 
   const selectPopularRoute = (route) => {
     setQueries({
-      start: `History start (${formatCoordinateLabel(route.startPoint)})`,
-      finish: route.finish_name || "Saved destination",
+      start: `Старт з історії (${formatCoordinateLabel(route.startPoint)})`,
+      finish: route.finish_name || "Збережений пункт",
     });
-    setPoints({
-      start: route.startPoint,
-      finish: route.finishPoint,
-    });
+    setPoints({ start: route.startPoint, finish: route.finishPoint });
     setSuggestions({ start: [], finish: [] });
     setFocusedField(null);
     setRoute(null);
@@ -418,7 +463,6 @@ const SearchInput = ({
 
   const saveRoute = async () => {
     if (!points.start || !points.finish) return;
-
     setIsSaving(true);
     try {
       await apiRequest("/requests/routeInfo", {
@@ -428,11 +472,11 @@ const SearchInput = ({
           startLongitude: points.start[0],
           finishLatitude: points.finish[1],
           finishLongitude: points.finish[0],
-          finishName: queries.finish || "Destination",
+          finishName: queries.finish || "Призначення",
         },
       });
     } catch (error) {
-      setRouteError(error.message || "Route was built but could not be saved.");
+      setRouteError(error.message || "Маршрут побудовано, але не вдалося зберегти.");
     } finally {
       setIsSaving(false);
     }
@@ -440,11 +484,9 @@ const SearchInput = ({
 
   const buildRoute = async () => {
     if (!points.start || !points.finish || isBuildingRoute) return;
-
     setIsBuildingRoute(true);
     setRouteError("");
     dispatch(setParkingFilters(routeParkingFilters));
-
     try {
       const nextRoute = await onResultSelect?.({
         startPoint: points.start,
@@ -452,7 +494,6 @@ const SearchInput = ({
         travelMode,
         parkingFilters: routeParkingFilters,
       });
-
       if (nextRoute) {
         setRoute(nextRoute);
         setParkingRecommendations(nextRoute.parkingRecommendations || []);
@@ -460,7 +501,7 @@ const SearchInput = ({
         await saveRoute();
       }
     } catch (error) {
-      setRouteError(error.message || "Route could not be built.");
+      setRouteError(error.message || "Не вдалося побудувати маршрут.");
     } finally {
       setIsBuildingRoute(false);
     }
@@ -479,10 +520,7 @@ const SearchInput = ({
   };
 
   const updateRouteParkingFilter = (name, value) => {
-    setRouteParkingFilters((current) => ({
-      ...current,
-      [name]: value,
-    }));
+    setRouteParkingFilters((current) => ({ ...current, [name]: value }));
     setRoute(null);
     setParkingRecommendations([]);
     setRouteError("");
@@ -524,7 +562,6 @@ const SearchInput = ({
 
   const renderRouteFilterToggle = ([name, label]) => {
     const isActive = Boolean(routeParkingFilters[name]);
-
     return (
       <button
         key={name}
@@ -537,7 +574,7 @@ const SearchInput = ({
         }`}
         aria-pressed={isActive}
       >
-        <span className="min-w-0 leading-tight">{label}</span>
+        <span className="min-w-0 leading-tight">{ukFilterLabels[label] || label}</span>
         {isActive ? <Icon icon="mdi:check" className="h-4 w-4 shrink-0" /> : null}
       </button>
     );
@@ -545,7 +582,9 @@ const SearchInput = ({
 
   const renderRouteFilterGroup = (group) => (
     <section key={group.title} className="space-y-2 border-t border-white/10 pt-3">
-      <div className="text-xs font-bold uppercase text-slate-400">{group.title}</div>
+      <div className="text-xs font-bold uppercase text-slate-400">
+        {ukGroupTitles[group.title] || group.title}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         {group.filters.map(renderRouteFilterToggle)}
       </div>
@@ -562,10 +601,10 @@ const SearchInput = ({
       >
         <span className="min-w-0">
           <span className="block text-xs font-bold uppercase text-blue-200">
-            Parking filters
+            Фільтри паркінгів
           </span>
           <span className="block truncate text-sm font-bold text-white">
-            {activeFilterCount ? `${activeFilterCount} active` : "Any parking"}
+            {activeFilterCount ? `${activeFilterCount} активних` : "Будь-який паркінг"}
           </span>
         </span>
         <span className="flex items-center gap-2">
@@ -606,13 +645,13 @@ const SearchInput = ({
               className="flex w-full items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-white/10"
             >
               <Icon icon="mdi:filter-remove-outline" className="h-4 w-4" />
-              Clear filters
+              Скинути фільтри
             </button>
           ) : null}
 
           <div className="grid grid-cols-2 gap-2">
             <label className="flex min-w-0 flex-col gap-1 text-xs font-bold uppercase text-blue-200">
-              Search
+              Пошук
               <input
                 type="text"
                 name="search"
@@ -622,7 +661,7 @@ const SearchInput = ({
               />
             </label>
             <label className="flex min-w-0 flex-col gap-1 text-xs font-bold uppercase text-blue-200">
-              Operator
+              Оператор
               <input
                 type="text"
                 name="operator"
@@ -631,8 +670,8 @@ const SearchInput = ({
                 className={routeFilterInputClass}
               />
             </label>
-            {renderRouteNumberInput("minCapacity", "Min capacity")}
-            {renderRouteNumberInput("maxHeightMeters", "Max height, m", "0.1")}
+            {renderRouteNumberInput("minCapacity", "Мін. місць")}
+            {renderRouteNumberInput("maxHeightMeters", "Макс. висота, м", "0.1")}
           </div>
 
           {parkingFilterGroups.map(renderRouteFilterGroup)}
@@ -642,16 +681,17 @@ const SearchInput = ({
   );
 
   const renderSuggestions = (field) => {
-    const isOpen = focusedField === field;
-    if (!isOpen) return null;
-    const popularRouteMatches = field === "finish"
-      ? popularRoutes.filter((route) =>
-          !queries.finish.trim() ||
-          String(route.finish_name || "Saved destination")
-            .toLowerCase()
-            .includes(queries.finish.trim().toLowerCase())
-        )
-      : [];
+    if (focusedField !== field) return null;
+
+    const popularRouteMatches =
+      field === "finish"
+        ? popularRoutes.filter((route) =>
+            !queries.finish.trim() ||
+            String(route.finish_name || "Збережений пункт")
+              .toLowerCase()
+              .includes(queries.finish.trim().toLowerCase())
+          )
+        : [];
 
     return (
       <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-[320px] overflow-y-auto rounded-lg border border-white/10 bg-[#061f45] shadow-2xl">
@@ -666,7 +706,7 @@ const SearchInput = ({
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/20 text-blue-200">
             <Icon icon="mdi:crosshairs-gps" className="h-5 w-5" />
           </span>
-          <span className="font-semibold">Current location</span>
+          <span className="font-semibold">Поточне місцезнаходження</span>
         </button>
 
         <button
@@ -681,9 +721,9 @@ const SearchInput = ({
             <Icon icon="mdi:map-marker-plus" className="h-5 w-5" />
           </span>
           <span className="min-w-0">
-            <span className="block font-semibold">Pick on map</span>
+            <span className="block font-semibold">Обрати на карті</span>
             <span className="block truncate text-xs text-slate-300">
-              Click any point and place a marker manually
+              Клікніть на будь-яку точку карти
             </span>
           </span>
         </button>
@@ -691,7 +731,7 @@ const SearchInput = ({
         {popularRouteMatches.length ? (
           <div className="border-t border-white/10">
             <div className="px-3 pb-1 pt-3 text-xs font-bold uppercase text-blue-200">
-              Popular routes
+              Популярні маршрути
             </div>
             {popularRouteMatches.map((route) => (
               <button
@@ -708,10 +748,10 @@ const SearchInput = ({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-bold text-white">
-                    {route.finish_name || "Saved destination"}
+                    {route.finish_name || "Збережений пункт"}
                   </span>
                   <span className="block truncate text-xs text-slate-300">
-                    Used {route.count} time{route.count === 1 ? "" : "s"} · {formatCoordinateLabel(route.finishPoint)}
+                    {route.count} {pluralTimes(route.count)} · {formatCoordinateLabel(route.finishPoint)}
                   </span>
                 </span>
               </button>
@@ -720,7 +760,7 @@ const SearchInput = ({
         ) : null}
 
         {loadingSuggestions[field] ? (
-          <div className="px-3 py-3 text-sm text-slate-300">Searching...</div>
+          <div className="px-3 py-3 text-sm text-slate-300">Пошук...</div>
         ) : null}
 
         {suggestions[field].map((suggestion) => (
@@ -747,9 +787,11 @@ const SearchInput = ({
           </button>
         ))}
 
-        {!loadingSuggestions[field] && suggestions[field].length === 0 && queries[field].trim().length > 1 ? (
+        {!loadingSuggestions[field] &&
+        suggestions[field].length === 0 &&
+        queries[field].trim().length > 1 ? (
           <div className="border-t border-white/10 px-3 py-3 text-sm text-slate-300">
-            Nothing found. Try a more specific address.
+            Нічого не знайдено. Спробуйте точнішу адресу.
           </div>
         ) : null}
       </div>
@@ -758,7 +800,6 @@ const SearchInput = ({
 
   const renderField = (field) => {
     const config = fieldConfig[field];
-
     return (
       <div className="relative">
         <label className="mb-1 block text-xs font-bold uppercase text-blue-200">
@@ -782,61 +823,79 @@ const SearchInput = ({
               type="button"
               onClick={() => setFieldValue(field, "")}
               className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              aria-label={`Clear ${config.label.toLowerCase()}`}
+              aria-label={`Очистити ${config.label.toLowerCase()}`}
             >
               <Icon icon="mdi:close" className="h-4 w-4" />
             </button>
           ) : null}
-          {points[field] ? <Icon icon="mdi:check-circle" className="h-5 w-5 text-emerald-500" /> : null}
+          {points[field] ? (
+            <Icon icon="mdi:check-circle" className="h-5 w-5 text-emerald-500" />
+          ) : null}
         </div>
         {renderSuggestions(field)}
       </div>
     );
   };
 
+  const hasContent = queries.start || queries.finish || route;
+
   return (
     <div
       ref={containerRef}
       className="flex max-h-[calc(100vh-2.5rem)] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-blue-300/20 bg-[#031A3A]/95 text-white shadow-2xl backdrop-blur"
     >
+      {/* Header */}
       <div className="border-b border-white/10 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-xs font-bold uppercase text-blue-200">
-              Navigation
-            </div>
-            <h2 className="text-xl font-bold leading-tight">Route planner</h2>
+            <div className="text-xs font-bold uppercase text-blue-200">Навігація</div>
+            <h2 className="text-xl font-bold leading-tight">Планувальник маршрутів</h2>
           </div>
-          <button
-            type="button"
-            onClick={clearRoute}
-            className="flex h-9 w-9 items-center justify-center rounded-md bg-white/10 text-white hover:bg-white/20"
-            aria-label="Clear route"
-            title="Clear route"
-          >
-            <Icon icon="mdi:close" className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {hasContent ? (
+              <button
+                type="button"
+                onClick={clearRoute}
+                className="flex h-9 w-9 items-center justify-center rounded-md bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white"
+                aria-label="Очистити маршрут"
+                title="Очистити маршрут"
+              >
+                <Icon icon="mdi:delete-outline" className="h-5 w-5" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => dispatch(setRoutePlannerVisible(false))}
+              className="flex h-9 w-9 items-center justify-center rounded-md bg-white/10 text-white hover:bg-white/20"
+              aria-label="Закрити планувальник"
+              title="Закрити"
+            >
+              <Icon icon="mdi:close" className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Map pick banner */}
       {pickMode ? (
         <div className="border-b border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
           <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 font-semibold">
               <Icon icon="mdi:map-marker-plus" className="h-5 w-5" />
-              Click the map to set {fieldConfig[pickMode].label.toLowerCase()}
+              Клікніть на карту — {fieldConfig[pickMode].label.toLowerCase()}
             </span>
             <button
               type="button"
               onClick={clearMapPicker}
               className="rounded-md bg-white/10 px-2 py-1 text-xs font-bold hover:bg-white/20"
             >
-              Cancel
+              Скасувати
             </button>
           </div>
         </div>
       ) : null}
 
+      {/* Body */}
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {renderField("start")}
 
@@ -845,7 +904,7 @@ const SearchInput = ({
             type="button"
             onClick={swapPoints}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 text-blue-100 hover:bg-white/20"
-            aria-label="Swap start and destination"
+            aria-label="Поміняти початок та призначення"
           >
             <Icon icon="mdi:swap-vertical" className="h-5 w-5" />
           </button>
@@ -888,8 +947,11 @@ const SearchInput = ({
               : "bg-slate-600 text-slate-300"
           }`}
         >
-          <Icon icon={isBuildingRoute ? "mdi:loading" : "mdi:navigation-variant"} className={`h-5 w-5 ${isBuildingRoute ? "animate-spin" : ""}`} />
-          {isBuildingRoute ? "Building route..." : "Build route"}
+          <Icon
+            icon={isBuildingRoute ? "mdi:loading" : "mdi:navigation-variant"}
+            className={`h-5 w-5 ${isBuildingRoute ? "animate-spin" : ""}`}
+          />
+          {isBuildingRoute ? "Будую маршрут..." : "Побудувати маршрут"}
         </button>
 
         {routeError ? (
@@ -902,25 +964,27 @@ const SearchInput = ({
           <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5">
             <div className="grid grid-cols-3 gap-2 border-b border-white/10 p-3">
               <div>
-                <div className="text-xs text-slate-400">Time</div>
+                <div className="text-xs text-slate-400">Час</div>
                 <div className="text-sm font-bold">{formatDuration(route.duration)}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Distance</div>
+                <div className="text-xs text-slate-400">Відстань</div>
                 <div className="text-sm font-bold">{formatDistance(route.distance)}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Mode</div>
-                <div className="text-sm font-bold capitalize">{travelMode}</div>
+                <div className="text-xs text-slate-400">Тип</div>
+                <div className="text-sm font-bold">
+                  {travelModes.find((m) => m.id === travelMode)?.label || travelMode}
+                </div>
               </div>
             </div>
 
             <div className="border-t border-white/10 p-3">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-xs font-bold uppercase text-blue-200">
-                  Top parking picks
+                  Паркінги поруч ({parkingRecommendations.length})
                 </div>
-                <div className="text-xs text-slate-400">Utility score</div>
+                <div className="text-xs text-slate-400">Оцінка</div>
               </div>
 
               {parkingRecommendations.length > 0 ? (
@@ -928,7 +992,6 @@ const SearchInput = ({
                   {parkingRecommendations.map((recommendation, index) => {
                     const prediction = recommendation.occupancyPrediction;
                     const tone = availabilityTone(prediction);
-
                     return (
                       <button
                         key={`${recommendation.parking.properties?.osmId || recommendation.parking.name}-${index}`}
@@ -942,24 +1005,27 @@ const SearchInput = ({
                         className={`w-full rounded-lg border ${tone.border} bg-white/5 px-3 py-3 text-left hover:bg-white/10`}
                       >
                         <div className="flex items-start gap-3">
-                          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone.badge} text-sm font-black`}>
+                          <span
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone.badge} text-sm font-black`}
+                          >
                             {index + 1}
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="flex items-start justify-between gap-2">
                               <span className="min-w-0 truncate text-sm font-bold text-white">
-                                {recommendation.parking.name || "Parking"}
+                                {recommendation.parking.name || "Паркінг"}
                               </span>
                               <span className="shrink-0 text-sm font-black text-amber-200">
                                 {formatScore(recommendation.score)}
                               </span>
                             </span>
                             <span className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-300">
-                              <span>Drive: {formatDuration(recommendation.metrics.driveDuration)}</span>
-                              <span>Walk: {formatDuration(recommendation.metrics.walkDuration)}</span>
-                              <span>Cost: {recommendation.metrics.costLabel}</span>
+                              <span>Авто: {formatDuration(recommendation.metrics.driveDuration)}</span>
+                              <span>Пішки: {formatDuration(recommendation.metrics.walkDuration)}</span>
+                              <span>Вартість: {recommendation.metrics.costLabel}</span>
                               <span className={tone.text}>
-                                Free: {prediction ? formatScore(prediction.probability) : "Unknown"}
+                                Вільно:{" "}
+                                {prediction ? formatScore(prediction.probability) : "Невідомо"}
                               </span>
                             </span>
                             {prediction?.explanation ? (
@@ -975,14 +1041,14 @@ const SearchInput = ({
                 </div>
               ) : (
                 <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-300">
-                  No nearby parking candidates found for this destination.
+                  Поблизу немає кандидатів для паркування на цьому маршруті.
                 </div>
               )}
             </div>
 
             {isSaving ? (
               <div className="border-t border-white/10 px-3 py-2 text-xs text-slate-400">
-                Saving route...
+                Зберігаю маршрут...
               </div>
             ) : null}
           </div>

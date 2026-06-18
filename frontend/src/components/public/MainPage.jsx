@@ -19,8 +19,12 @@ function MainPage(props) {
 
   return (
     <div className="flex h-screen font-sans">
-      <div className="flex-1 bg-gray-100 flex items-center justify-center">
-        <img src={parking} alt="Parking" className="w-72 h-72 opacity-50" />
+      <div className="hidden flex-1 flex-col items-center justify-center gap-6 bg-[#031A3A] md:flex">
+        <img src={parking} alt="Parking" className="h-40 w-40 opacity-30" />
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">ParkWise</div>
+          <div className="mt-1 text-sm text-slate-400">Find parking · Plan routes · Save time</div>
+        </div>
       </div>
       {authMode === 'register' && (
         <RegistrationForm

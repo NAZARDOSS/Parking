@@ -58,12 +58,11 @@ function RegistrationForm({ onSwitchToLogin, setIsLoggedIn, isGoogleEnabled }) {
     e.preventDefault();
 
     if (!formData.termsAccepted) {
-      alert('Please accept the Terms & Conditions');
+      setErrors((prev) => ({ ...prev, form: 'Please accept the Terms & Conditions.' }));
       return;
     }
 
     if (errors.email || errors.password) {
-      alert('Please fix the errors before submitting.');
       return;
     }
 

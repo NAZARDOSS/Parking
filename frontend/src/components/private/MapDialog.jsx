@@ -1,65 +1,33 @@
-import { useEffect } from 'react';
-import { Snackbar, Slide, IconButton, Stack } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import WarningIcon from '@mui/icons-material/Warning';
+import { useEffect, useRef } from 'react';
+import { Icon } from "@iconify/react";
 
 function MapDialog({ open, handleClose }) {
-  const handleTransition = (props) => {
-    return <Slide direction="right" {...props} />;
-  };
+  const timerRef = useRef(null);
 
   useEffect(() => {
-    if (!open) {
-      const snackbarElement = document.querySelector('.MuiSnackbar-root');
-      if (snackbarElement) {
-        snackbarElement.remove();
-      }
+    if (open) {
+      timerRef.current = setTimeout(handleClose, 6000);
     }
-  }, [open]); 
+    return () => clearTimeout(timerRef.current);
+  }, [open, handleClose]);
+
+  if (!open) return null;
 
   return (
-    <Snackbar
-      open={open}
-      onClose={handleClose}
-      TransitionComponent={handleTransition}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'right',
-      }}
-      sx={{
-        '& .MuiSnackbarContent-root': {
-          backgroundColor: 'white',
-          border: '2px solid rgb(23 37 84)',
-          borderRadius: '10px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-          padding: '16px',
-          color: '#333',
-        },
-        '& .MuiIconButton-root': {
-          color: 'black',
-        },
-        '& .MuiSnackbarContent-message': {
-          display: 'flex',
-          alignItems: 'center',
-        },
-      }}
-      message={
-        <Stack direction="row" spacing={1} alignItems="center">
-          <WarningIcon sx={{ color: 'orange', fontSize: 24 }} />
-          <span>Please enable location services in your browser settings</span>
-        </Stack>
-      }
-      action={
-        <IconButton
-          size="small"
-          aria-label="close"
-          color="inherit"
-          onClick={handleClose}
-        >
-          <CloseIcon />
-        </IconButton>
-      }
-    />
+    <div className="absolute bottom-6 right-24 z-50 flex max-w-xs items-start gap-3 rounded-lg border border-amber-300/30 bg-[#031A3A]/95 px-4 py-3 text-white shadow-2xl backdrop-blur">
+      <Icon icon="mdi:alert" className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+      <span className="text-sm leading-snug">
+        Please enable location services in your browser settings
+      </span>
+      <button
+        type="button"
+        onClick={handleClose}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-white"
+        aria-label="Close notification"
+      >
+        <Icon icon="mdi:close" className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 

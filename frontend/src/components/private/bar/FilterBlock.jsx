@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { toggleFiltersVisibility, setParkingFilters, setEVfilters } from "../Store/store.js";
+import { Icon } from "@iconify/react";
+import { setFiltersVisible, setParkingFilters, setEVfilters } from "../Store/store.js";
 import { drawParkingMarkers } from "../lib/MapHelper.ts";
 import { evFilterGroups, parkingFilterGroups } from "../lib/filterConfig.js";
 
 const inputClass =
-  "w-full rounded-md border border-blue-200 bg-white px-2 py-1 text-sm text-gray-900 outline-none focus:border-blue-700";
+  "w-full rounded-md border border-white/10 bg-white/10 px-2 py-1.5 text-sm text-white outline-none focus:border-blue-300 placeholder:text-slate-500";
 
 function FilterBlock(props) {
   const map = props.map;
@@ -17,7 +18,7 @@ function FilterBlock(props) {
   const [tempFilters, setTempFilters] = useState(parkingFilters);
   const [tempEVFilters, setTempEVFilters] = useState(EVfilters);
   const [activeTab, setActiveTab] = useState("Parkings");
-  const [position, setPosition] = useState({ top: 50, left: 200 });
+  const [position, setPosition] = useState({ top: 50, left: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hasChanges, setHasChanges] = useState(false);
@@ -48,7 +49,7 @@ function FilterBlock(props) {
   };
 
   const handleClose = () => {
-    dispatch(toggleFiltersVisibility());
+    dispatch(setFiltersVisible(false));
   };
 
   const handleParkingChange = (event) => {
@@ -79,21 +80,21 @@ function FilterBlock(props) {
   };
 
   const renderCheckbox = ([name, label], values, onChange) => (
-    <label key={name} className="flex items-center gap-2 text-sm text-gray-900">
+    <label key={name} className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer">
       <input
         type="checkbox"
         name={name}
         checked={values[name] || false}
         onChange={onChange}
-        className="h-4 w-4"
+        className="h-4 w-4 rounded accent-blue-400"
       />
       <span>{label}</span>
     </label>
   );
 
   const renderGroup = (group, values, onChange) => (
-    <section key={group.title} className="border-t border-blue-200 pt-3">
-      <h3 className="mb-2 text-sm font-bold text-blue-950">{group.title}</h3>
+    <section key={group.title} className="border-t border-white/10 pt-3">
+      <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-blue-200">{group.title}</h3>
       <div className="grid grid-cols-2 gap-2">
         {group.filters.map((filter) => renderCheckbox(filter, values, onChange))}
       </div>
@@ -101,7 +102,7 @@ function FilterBlock(props) {
   );
 
   const renderNumberInput = (name, label, values, onChange, step = "1") => (
-    <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+    <label className="flex flex-col gap-1 text-xs font-bold uppercase tracking-[0.1em] text-blue-200">
       {label}
       <input
         type="number"
@@ -117,35 +118,39 @@ function FilterBlock(props) {
 
   return (
     <div
-      className="absolute z-20 flex max-h-[80vh] w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg bg-blue-100 shadow-xl"
+      className="absolute z-20 flex max-h-[80vh] w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-blue-300/20 bg-[#031A3A]/95 text-white shadow-2xl backdrop-blur"
       style={{ top: position.top, left: position.left }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
       <div
-        className="cursor-move select-none bg-blue-950 px-4 py-3 text-white"
+        className="flex cursor-move select-none items-center justify-between border-b border-white/10 bg-[#0a2351] px-4 py-3"
         onMouseDown={handleMouseDown}
       >
+        <div className="flex items-center gap-2">
+          <Icon icon="bi:toggles" className="h-4 w-4 text-blue-300" />
+          <span className="text-xs font-bold uppercase tracking-[0.16em] text-blue-200">Filters</span>
+        </div>
         <button
           onClick={handleClose}
-          className="absolute right-3 top-2 text-xl leading-none text-white/80 hover:text-white"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20"
           type="button"
+          aria-label="Close filters"
         >
-          &#x2715;
+          <Icon icon="mdi:close" className="h-4 w-4" />
         </button>
-        <div className="pr-8 text-base font-bold">Filters</div>
       </div>
 
-      <div className="flex bg-gray-200">
+      <div className="flex border-b border-white/10">
         {["Parkings", "EV Chargers"].map((tab) => (
           <button
             key={tab}
             type="button"
-            className={`flex-1 px-4 py-2 text-sm font-bold transition-colors ${
+            className={`flex-1 px-4 py-2.5 text-sm font-bold transition-colors ${
               activeTab === tab
-                ? "bg-blue-800 text-white"
-                : "bg-gray-200 text-gray-900 hover:bg-gray-300"
+                ? "border-b-2 border-blue-400 bg-blue-500/10 text-white"
+                : "text-slate-400 hover:bg-white/5 hover:text-white"
             }`}
             onClick={() => setActiveTab(tab)}
           >
@@ -158,7 +163,7 @@ function FilterBlock(props) {
         {activeTab === "Parkings" ? (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+              <label className="flex flex-col gap-1 text-xs font-bold uppercase tracking-[0.1em] text-blue-200">
                 Search
                 <input
                   type="text"
@@ -166,9 +171,10 @@ function FilterBlock(props) {
                   value={tempFilters.search || ""}
                   onChange={handleParkingChange}
                   className={inputClass}
+                  placeholder="Name..."
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+              <label className="flex flex-col gap-1 text-xs font-bold uppercase tracking-[0.1em] text-blue-200">
                 Operator
                 <input
                   type="text"
@@ -176,6 +182,7 @@ function FilterBlock(props) {
                   value={tempFilters.operator || ""}
                   onChange={handleParkingChange}
                   className={inputClass}
+                  placeholder="Operator..."
                 />
               </label>
               {renderNumberInput("minCapacity", "Min capacity", tempFilters, handleParkingChange)}
@@ -186,7 +193,7 @@ function FilterBlock(props) {
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+              <label className="flex flex-col gap-1 text-xs font-bold uppercase tracking-[0.1em] text-blue-200">
                 Search
                 <input
                   type="text"
@@ -194,9 +201,10 @@ function FilterBlock(props) {
                   value={tempEVFilters.search || ""}
                   onChange={handleEVChange}
                   className={inputClass}
+                  placeholder="Name..."
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm font-semibold text-blue-950">
+              <label className="flex flex-col gap-1 text-xs font-bold uppercase tracking-[0.1em] text-blue-200">
                 Operator
                 <input
                   type="text"
@@ -204,6 +212,7 @@ function FilterBlock(props) {
                   value={tempEVFilters.operator || ""}
                   onChange={handleEVChange}
                   className={inputClass}
+                  placeholder="Operator..."
                 />
               </label>
               {renderNumberInput("minPowerKw", "Min power, kW", tempEVFilters, handleEVChange)}
@@ -214,18 +223,18 @@ function FilterBlock(props) {
         )}
       </div>
 
-      <div className="border-t border-blue-200 p-4">
+      <div className="border-t border-white/10 p-4">
         <button
           onClick={handleActivateFilters}
-          className={`w-full rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
+          className={`w-full rounded-lg px-4 py-2.5 text-sm font-bold transition-colors ${
             hasChanges
-              ? "bg-blue-700 text-white hover:bg-blue-800"
-              : "bg-gray-200 text-gray-500"
+              ? "bg-blue-500 text-white hover:bg-blue-400"
+              : "bg-white/5 text-slate-500"
           }`}
           disabled={!hasChanges}
           type="button"
         >
-          Apply
+          Apply filters
         </button>
       </div>
     </div>
